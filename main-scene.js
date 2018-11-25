@@ -5,15 +5,19 @@ class Final_Project extends Scene_Component
         if( !context.globals.has_controls   ) 
           context.register_scene_component( new Movement_Controls( context, control_box.parentElement.insertCell() ) ); 
 
-        context.globals.graphics_state.camera_transform = Mat4.look_at( Vec.of( 0,0,0 ), Vec.of( 0,0,1 ), Vec.of( 0,1,0 ) );
+        context.globals.graphics_state.camera_transform = Mat4.look_at( Vec.of( 0,0,0 ), Vec.of( 0,0,100 ), Vec.of( 0,1,0 ) );
         this.initial_camera_location = Mat4.inverse( context.globals.graphics_state.camera_transform );
 
         const r = context.width/context.height;
         context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/4, r, .1, 1000 );
 
-        const shapes = { skybox_side: new Square()};
-        this.submit_shapes( context, shapes );
-                                     
+	create_height_map("assets/heightmap.jpg", 128, -50, 50, (gp) => {
+            const shapes = { skybox_side: new Square(),
+			     map: gp
+			   };
+            this.submit_shapes( context, shapes );
+	});
+        
                                      // Make some Material objects available to you:
         this.materials =
         {
@@ -24,7 +28,8 @@ class Final_Project extends Scene_Component
 		context.get_instance( Phong_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, texture: context.get_instance( "assets/skybox/rt.png", true ) }),
 		context.get_instance( Phong_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, texture: context.get_instance( "assets/skybox/bk.png", true ) }),
 		context.get_instance( Phong_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, texture: context.get_instance( "assets/skybox/ft.png", true ) })
-	    ]
+	    ],
+	    map: context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, texture: context.get_instance( "assets/terrain.jpg", true) } )
 	}
 
         this.lights = [ new Light( Vec.of( -5,5,5,1 ), Color.of( 0,1,1,1 ), 100000 ) ];
@@ -32,10 +37,13 @@ class Final_Project extends Scene_Component
     make_control_panel()            // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
       {       }
     display( graphics_state )
-    {   graphics_state.lights = this.lights;
+    {
+	if (!this.shapes) return;
+	graphics_state.lights = this.lights;
         const t = graphics_state.animation_time / 1000, dt = graphics_state.animation_delta_time / 1000;
 
-	this.draw_skybox(graphics_state);  
+	this.draw_skybox(graphics_state);
+	this.shapes.map.draw(graphics_state, Mat4.scale([200,1,200]).times(Mat4.translation([-0.5,0,-0.5])), this.materials.map);
     }
     draw_skybox(graphics_state) {
 	for( var i = 0; i < 3; i++ )                    
@@ -48,3 +56,31 @@ class Final_Project extends Scene_Component
         }
     }
   }
+
+
+function create_height_map (image, subdivisions, min_height, max_height, callback) {
+    var img = new Image();
+    img.onload = () => {	
+	var canvas = document.createElement( 'canvas' );
+	canvas.width = subdivisions;
+	canvas.height = subdivisions;
+	var context = canvas.getContext( '2d' );
+
+	var size = subdivisions * subdivisions, data = new Float32Array( size );
+	
+	context.drawImage(img,0,0);
+	
+	var imgd = context.getImageData(0, 0, subdivisions, subdivisions);
+	var pix = imgd.data;
+	
+	var j=0;
+	for (var i = 0, n = pix.length; i < n; i += (4)) {
+	    var all = pix[i]+pix[i+1]+pix[i+2];
+	    data[j++] = min_height + all/(255+255+255) * max_height;
+	}
+	var gp = new Grid_Patch( subdivisions, subdivisions, i => Vec.of(0, data[Math.floor(i * subdivisions * subdivisions)], i),
+				 (j, p, i) => Vec.of(j, data[Math.floor(i * subdivisions * subdivisions + j * subdivisions)], i), [[0,1], [1,0]]);
+	callback(gp);
+    };
+    img.src = image;
+}
