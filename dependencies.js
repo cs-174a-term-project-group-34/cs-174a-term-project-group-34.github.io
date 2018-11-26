@@ -528,10 +528,11 @@ class Water_Shader extends Phong_Shader
   shared_glsl_code()            // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
     { return `precision mediump float;
         const int N_LIGHTS = 2;             // We're limited to only so many inputs in hardware.  Lights are costly (lots of sub-values).
+        uniform mat4 inverse_camera_transform;
         uniform float ambient, diffusivity, specularity, smoothness, animation_time, attenuation_factor[N_LIGHTS], reflectivity;
         uniform bool GOURAUD, COLOR_NORMALS, USE_TEXTURE, USE_ENVMAP;               // Flags for alternate shading methods
         uniform vec4 lightPosition[N_LIGHTS], lightColor[N_LIGHTS], shapeColor;
-        varying vec3 N, E, reflection;                    // Specifier "varying" means a variable's final value will be passed from the vertex shader 
+        varying vec3 N, E;                    // Specifier "varying" means a variable's final value will be passed from the vertex shader 
         varying vec2 f_tex_coord;             // on to the next phase (fragment shader), then interpolated per-fragment, weighted by the 
         varying vec4 VERTEX_COLOR;            // pixel fragment's proximity to each of the 3 vertices (barycentric interpolation).
         varying vec3 L[N_LIGHTS], H[N_LIGHTS];
@@ -575,7 +576,6 @@ class Water_Shader extends Phong_Shader
           vec3 screen_space_pos = ( camera_model_transform * vec4(object_space_pos, 1.0) ).xyz;
           E = normalize( -screen_space_pos );
 
-          reflection = reflect(screen_space_pos, N);
           for( int i = 0; i < N_LIGHTS; i++ )
           {            // Light positions use homogeneous coords.  Use w = 0 for a directional light source -- a vector instead of a point.
             L[i] = normalize( ( camera_transform * lightPosition[i] ).xyz - lightPosition[i].w * screen_space_pos );
@@ -607,7 +607,10 @@ class Water_Shader extends Phong_Shader
           }                                 // If we get this far, calculate Smooth "Phong" Shading as opposed to Gouraud Shading.
                                             // Phong shading is not to be confused with the Phong Reflection Model.
           vec4 tex_color = texture2D( texture, f_tex_coord );                         // Sample the texture image in the correct place.
-          vec4 envmap_color = textureCube( envmap, reflection );
+          vec3 reflected = reflect(-E, N);
+          reflected = vec3(inverse_camera_transform * vec4(reflected, 0.0));
+
+          vec4 envmap_color = textureCube( envmap, reflected );
                                                                                       // Compute an initial (ambient) color:
           if( USE_TEXTURE ) gl_FragColor = vec4( ( tex_color.xyz + shapeColor.xyz ) * ambient, shapeColor.w * tex_color.w ); 
           else gl_FragColor = vec4( shapeColor.xyz * ambient, shapeColor.w );
@@ -661,6 +664,25 @@ class Water_Shader extends Phong_Shader
       gl.uniform4fv( gpu.lightPosition_loc,       lightPositions_flattened );
       gl.uniform4fv( gpu.lightColor_loc,          lightColors_flattened );
       gl.uniform1fv( gpu.attenuation_factor_loc,  lightAttenuations_flattened );
+    }
+
+    update_matrices( g_state, model_transform, gpu, gl )                                    // Helper function for sending matrices to GPU.
+    {                                                   // (PCM will mean Projection * Camera * Model)
+      let [ P, C, M ]    = [ g_state.projection_transform, g_state.camera_transform, model_transform ],
+            CM     =      C.times(  M ),
+            PCM    =      P.times( CM ),
+          inv_CM = Mat4.inverse( CM ).sub_block([0,0], [3,3]),
+	  inv_C = Mat4.inverse( C );
+                                                                  // Send the current matrices to the shader.  Go ahead and pre-compute
+                                                                  // the products we'll need of the of the three special matrices and just
+                                                                  // cache and send those.  They will be the same throughout this draw
+                                                                  // call, and thus across each instance of the vertex shader.
+                                                                  // Transpose them since the GPU expects matrices as column-major arrays.                                  
+      gl.uniformMatrix4fv( gpu.camera_transform_loc,                  false, Mat.flatten_2D_to_1D(     C .transposed() ) );
+      gl.uniformMatrix4fv( gpu.camera_model_transform_loc,            false, Mat.flatten_2D_to_1D(     CM.transposed() ) );
+      gl.uniformMatrix4fv( gpu.projection_camera_model_transform_loc, false, Mat.flatten_2D_to_1D(    PCM.transposed() ) );
+	gl.uniformMatrix3fv( gpu.inverse_transpose_modelview_loc,       false, Mat.flatten_2D_to_1D( inv_CM              ) );
+	gl.uniformMatrix4fv( gpu.inverse_camera_transform_loc, false, Mat.flatten_2D_to_1D( inv_C.transposed() ));
     }
 }
 
