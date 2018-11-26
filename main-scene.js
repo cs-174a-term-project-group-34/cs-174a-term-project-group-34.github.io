@@ -12,7 +12,7 @@ class Final_Project extends Scene_Component
         context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/4, r, .1, 1500 );
 
 	create_height_map("assets/heightmap.jpg", 128, -200, 300, (gp) => {
-            const shapes = { skybox_side: new Square(),
+            const shapes = { skybox: new Cube(),
 			     map: gp
 			   };
             this.submit_shapes( context, shapes );
@@ -21,14 +21,7 @@ class Final_Project extends Scene_Component
                                      // Make some Material objects available to you:
         this.materials =
         {
-	    skybox: [
-		context.get_instance( Phong_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, texture: context.get_instance( "assets/skybox/dn.png", true ) }),
-		context.get_instance( Phong_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, texture: context.get_instance( "assets/skybox/up.png", true ) }),
-		context.get_instance( Phong_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, texture: context.get_instance( "assets/skybox/lf.png", true ) }),
-		context.get_instance( Phong_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, texture: context.get_instance( "assets/skybox/rt.png", true ) }),
-		context.get_instance( Phong_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, texture: context.get_instance( "assets/skybox/bk.png", true ) }),
-		context.get_instance( Phong_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, texture: context.get_instance( "assets/skybox/ft.png", true ) })
-	    ],
+	    skybox: context.get_instance( Skybox_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, cube_texture: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } ),
 	    map: context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.5, specularity: 0, diffusivity: 0.8, texture: context.get_instance( "assets/terrain.jpg", true) } )
 	}
 
@@ -42,10 +35,10 @@ class Final_Project extends Scene_Component
 	graphics_state.lights = this.lights;
         const t = graphics_state.animation_time / 1000, dt = graphics_state.animation_delta_time / 1000;
 
-	this.draw_skybox(graphics_state);
+	this.shapes.skybox.draw(graphics_state, Mat4.scale([500, 500, 500]), this.materials.skybox);
 	this.shapes.map.draw(graphics_state, Mat4.scale([1000,1,1000]).times(Mat4.translation([-0.5,0,-0.5])), this.materials.map);
     }
-    draw_skybox(graphics_state) {
+/*    draw_skybox(graphics_state) {
 	for( var i = 0; i < 3; i++ )                    
             for( var j = 0; j < 2; j++ )
         { var square_transform = Mat4.rotation( i == 0 ? Math.PI/2 : 0, Vec.of(1, 0, 0) )
@@ -54,8 +47,8 @@ class Final_Project extends Scene_Component
 	      .times( Mat4.scale([501.5,501.5,501.5]) );
 	  this.shapes.skybox_side.draw( graphics_state, square_transform, this.materials.skybox[2*i + j] );
         }
+    }*/
     }
-  }
 
 
 function create_height_map (image, subdivisions, min_height, max_height, callback) {

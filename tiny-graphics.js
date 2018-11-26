@@ -476,6 +476,36 @@ class Texture                                // The Texture class wraps a pointe
 }
 
 
+window.Cube_Texture = window.tiny_graphics.Cube_Texture =
+class Cube_Texture                                // The Texture class wraps a pointer to a new texture buffer along with a new HTML image object.
+{ constructor(             gl, filenames, bool_mipMap, bool_will_copy_to_GPU = true )
+    { Object.assign( this, {   filenames, bool_mipMap, bool_will_copy_to_GPU,       id: gl.createTexture() } );
+
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.id );
+      this.images = new Array(filenames.length);
+      for (let i = 0; i < filenames.length; i++) {
+	  gl.texImage2D (gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+			 new Uint8Array([255, 0, 0, 255]));    // A single red pixel, as a placeholder image to prevent a console warning.
+	  this.images[i]          = new Image();
+	  this.images[i].onload   = () =>                         // Instructions for whenever the real image file is ready
+              { gl.pixelStorei  ( gl.UNPACK_FLIP_Y_WEBGL, bool_will_copy_to_GPU );
+		gl.bindTexture  ( gl.TEXTURE_CUBE_MAP, this.id );
+		gl.texImage2D   ( gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.images[i] );
+		gl.texParameteri( gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR );  // Always use bi-linear sampling when the image
+                                                                                            // will appear magnified. When it will appear shrunk,
+		gl.texParameteri( gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR );
+		gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		if (i == filenames.length - 1)
+		    this.loaded = true;
+              }
+	  if( bool_will_copy_to_GPU )                                               // Avoid a browser warning, and load the image file.
+          { this.images[i].crossOrigin = "Anonymous"; this.images[i].src = this.filenames[i]; }
+      }
+    } 
+}
+
+
 window.Canvas_Manager = window.tiny_graphics.Canvas_Manager =
 class Canvas_Manager      // This class manages a whole graphics program for one on-page canvas, including its textures, shapes, shaders,
 {                         // and scenes.  In addition to requesting a WebGL context and storing the aforementioned items, it informs the
@@ -514,7 +544,9 @@ class Canvas_Manager      // This class manages a whole graphics program for one
     { if( this.instances[ shader_or_texture ] )     // or Texture) loaded, check if we already have one GPU-side first.
         return this.instances[ shader_or_texture ];     // Return the one that already is loaded if it exists.  Otherwise,
       if( typeof shader_or_texture == "string" )        // If a texture was requested, load it onto a GPU buffer.
-        return this.instances[ shader_or_texture ] = new Texture( this.gl, shader_or_texture, true );  // Or if it's a shader:
+          return this.instances[ shader_or_texture ] = new Texture( this.gl, shader_or_texture, true );  // Or if it's a shader:
+      else if( Array.isArray(shader_or_texture) )
+	  return this.instances[ shader_or_texture ] = new Cube_Texture( this.gl, shader_or_texture, true);
       return this.instances[ shader_or_texture ] = new ( shader_or_texture )( this.gl );    // Compile it and put it on the GPU.
     }
   register_scene_component( component )     // Allow a Scene_Component to show their control panel and enter the event loop.
