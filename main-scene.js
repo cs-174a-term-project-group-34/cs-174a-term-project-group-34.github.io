@@ -26,7 +26,7 @@ class Final_Project extends Scene_Component
         this.materials =
         {
 	    skybox: context.get_instance( Skybox_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, cube_texture: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } ),
-	    water: context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.85), { ambient: 0.5, specularity: 0, diffusivity: 0.8, reflectivity: 0.15, texture: context.get_instance( "assets/water.jpg", true ), envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } ),
+	    water: context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.85), { ambient: 0.5, specularity: 0, diffusivity: 0.8, reflectivity: 0.30, texture: context.get_instance( "assets/water.jpg", true ), envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } ),
 	    map: context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.5, specularity: 0, diffusivity: 0.8, texture: context.get_instance( "assets/terrain.jpg", true) } )
 	}
 
@@ -44,17 +44,7 @@ class Final_Project extends Scene_Component
 	this.shapes.map.draw(graphics_state, Mat4.scale([1000,1,1000]).times(Mat4.translation([-0.5,0,-0.5])), this.materials.map);
 	this.shapes.water.draw(graphics_state, Mat4.translation([0,-110,0]).times(Mat4.rotation(Math.PI/2, Vec.of(1,0,0))).times(Mat4.scale([500, 500, 500])), this.materials.water);	
     }
-/*    draw_skybox(graphics_state) {
-	for( var i = 0; i < 3; i++ )                    
-            for( var j = 0; j < 2; j++ )
-        { var square_transform = Mat4.rotation( i == 0 ? Math.PI/2 : 0, Vec.of(1, 0, 0) )
-              .times( Mat4.rotation( Math.PI * j - ( i == 1 ? Math.PI/2 : 0 ), Vec.of( 0, 1, 0 ) ) )
-              .times( Mat4.translation([ 0, 0, 500 ]) )
-	      .times( Mat4.scale([501.5,501.5,501.5]) );
-	  this.shapes.skybox_side.draw( graphics_state, square_transform, this.materials.skybox[2*i + j] );
-        }
-    }*/
-    }
+  }
 
 
 function create_height_map (image, subdivisions, min_height, max_height, callback) {

@@ -293,11 +293,11 @@ class Skybox_Shader extends Shader          // THE DEFAULT SHADER: This uses the
       gl.uniform1f ( gpu.diffusivity_loc,    material.diffusivity );    // Phong lighting formula.
       gl.uniform1f ( gpu.specularity_loc,    material.specularity );
 	gl.uniform1f ( gpu.smoothness_loc,     material.smoothness  );
-	gl.uniform1f ( gpu.cube_texture_loc, 1);
+	gl.uniform1i ( gpu.cube_texture_loc, 0);
 
       if ( material.cube_texture ) {
 	  gl.uniform1f(gpu.USE_CUBE_TEXTURE_loc, 1);
-	  gl.activeTexture(gl.TEXTURE1);
+	  gl.activeTexture(gl.TEXTURE0);
 	  gl.bindTexture( gl.TEXTURE_CUBE_MAP, material.cube_texture.id );
       }
       else  { gl.uniform1f ( gpu.USE_CUBE_TEXTURE_loc, 0 );   gpu.shader_attributes["tex_coord"].enabled = false; }
@@ -479,7 +479,7 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
       gl.uniform1f ( gpu.diffusivity_loc,    material.diffusivity );    // Phong lighting formula.
       gl.uniform1f ( gpu.specularity_loc,    material.specularity );
 	gl.uniform1f ( gpu.smoothness_loc,     material.smoothness  );
-	gl.uniform1f(gpu.texture_loc, 0);
+	gl.uniform1i(gpu.texture_loc, 0);
 
       if( material.texture )                           // NOTE: To signal not to draw a texture, omit the texture parameter from Materials.
       { gpu.shader_attributes["tex_coord"].enabled = true;
