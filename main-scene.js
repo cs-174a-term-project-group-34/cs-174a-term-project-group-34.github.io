@@ -101,8 +101,8 @@ class Player extends Scene_Component {
 
     calculateMovement(dt, leeway = 70) {
 	var new_pitch =  this.pitch + this.mouse.movement[1] * this.radians_per_frame * dt;
-	if (new_pitch >= Math.PI/2 - 0.001) new_pitch = Math.PI/2 - 0.001;
-	else if (new_pitch < -Math.PI/2 + 0.001) new_pitch = -Math.PI/2 + 0.001;
+	if (new_pitch >= Math.PI/2) new_pitch = Math.PI/2 - 0.001;
+	else if (new_pitch <= -Math.PI/2) new_pitch = -Math.PI/2 + 0.001;
 
 	var axis = this.up.cross(this.dir).normalized();
 	this.dir = Mat4.rotation(this.mouse.movement[0] * this.radians_per_frame * dt, Vec.of(0,-1,0)).times(Mat4.rotation(new_pitch - this.pitch, axis)).times(this.dir.to4(false)).to3();
