@@ -59,22 +59,25 @@ class Height_Map extends Scene_Component {
 }
 
 class Player extends Scene_Component {
-    constructor(context, control_box, height_map) {
+    constructor(context, control_box, height_map, initial_pos = Vec.of(150,0,1), initial_dir = Vec.of(0,0,1), run_speed = 6.705, look_speed = 0.2, height = 1.75) {
 	super(context, control_box);
 	
 	this.height_map = height_map;
-	
-	this.pos = Vec.of(150,0,1);
-	this.dir = Vec.of(0,0,1);
-	this.azimuth = 0;
+
+	this.speed = run_speed;
+	this.radians_per_frame = look_speed;
+	this.height = height;
+
+	this.pos = initial_pos;
+	this.dir = initial_dir;
+	this.yaw = 0;
 	this.pitch  = 0;
 	this.up = Vec.of(0,1,0);
-	this.speed = 6.705; // 15mph running speed
+
 	this.forward = 0;
 	this.backward = 0;
 	this.left = 0;
 	this.right = 0;
-	this.radians_per_frame = 1/5;
 
 	// *** Mouse controls: ***
 	this.mouse = { "movement": Vec.of( 0,0 ) };                           // Measure mouse steering, for rotating the flyaround camera:
@@ -98,12 +101,12 @@ class Player extends Scene_Component {
     }
 
     calculateMovement(dt, leeway = 70) {
-	this.azimuth += this.mouse.movement[0] * this.radians_per_frame * dt;
+	this.yaw += this.mouse.movement[0] * this.radians_per_frame * dt;
 	this.pitch +=  this.mouse.movement[1] * this.radians_per_frame * dt;
 	this.mouse.movement[0] = 0; this.mouse.movement[1] = 0;
 	if (this.pitch >= Math.PI/2 - 0.001) this.pitch = Math.PI/2 - 0.001;
 	else if (this.pitch < -Math.PI/2 + 0.001) this.pitch = -Math.PI/2 + 0.001;
-	this.dir = Mat4.rotation(this.azimuth, Vec.of(0,-1,0)).times(Mat4.rotation(this.pitch, Vec.of(1,0,0))).times(Vec.of(0,0,1,0)).to3();
+	this.dir = Mat4.rotation(this.yaw, Vec.of(0,-1,0)).times(Mat4.rotation(this.pitch, Vec.of(1,0,0))).times(Vec.of(0,0,1,0)).to3();
 
 	var right = this.dir.cross(this.up);
 	this.pos[0] += this.forward * this.dir[0] * this.speed * dt;
@@ -119,7 +122,7 @@ class Player extends Scene_Component {
 	this.pos[2] -= this.left * right[2] * this.speed * dt;
 
 	if(this.height_map.loaded) {
-	    this.pos[1] = this.height_map.sample_height(this.pos[0], this.pos[2]) + 1.75;
+	    this.pos[1] = this.height_map.sample_height(this.pos[0], this.pos[2]) + this.height;
 	}
     }
 
@@ -176,7 +179,7 @@ class Final_Project extends Scene_Component
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 1500 );
 	  
-      this.lights = [ new Light( Vec.of( 500,500,500,1 ), Color.of( 1,1,0.5,1 ), 10000000 ) ];
+      this.lights = [ new Light( Vec.of( 500,500,500,0 ), Color.of( 1,1,0.5,1 ), 10000000 ) ];
     }
     make_control_panel()            // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
     {
