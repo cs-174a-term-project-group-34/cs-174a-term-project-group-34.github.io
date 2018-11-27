@@ -612,9 +612,10 @@ class Water_Shader extends Phong_Shader
 
           vec4 envmap_color = textureCube( envmap, reflected );
                                                                                       // Compute an initial (ambient) color:
-          if( USE_TEXTURE ) gl_FragColor = vec4( ( tex_color.xyz + shapeColor.xyz ) * ambient, shapeColor.w * tex_color.w ); 
-          else gl_FragColor = vec4( shapeColor.xyz * ambient, shapeColor.w );
+          if( USE_TEXTURE ) gl_FragColor = vec4( ( tex_color.xyz + shapeColor.xyz ), shapeColor.w * tex_color.w ); 
+          else gl_FragColor = vec4( shapeColor.xyz, shapeColor.w );
           if( USE_ENVMAP ) gl_FragColor.xyz = (1.0 - reflectivity) * gl_FragColor.xyz + reflectivity*(envmap_color.xyz);
+          gl_FragColor.xyz *= ambient;
           gl_FragColor.xyz += phong_model_lights( N );
         }`;
     }

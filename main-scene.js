@@ -1,75 +1,193 @@
+class Height_Map extends Scene_Component {
+    constructor(context, image, width, depth, subdivisions, min_height, max_height) {
+	super(context);
+	this.subdivisions = subdivisions;
+	this.width = width;
+	this.depth = depth;
+	this.min_height = min_height;
+	this.max_height = max_height;
+	
+	this.loaded = false;
+	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.5, specularity: 0, diffusivity: 0.3, texture: context.get_instance( "assets/terrain.jpg", true) } );
+
+	var self = this;
+	var img = new Image();
+	img.onload = () => {	
+	    var canvas = document.createElement( 'canvas' );
+	    canvas.width = subdivisions;
+	    canvas.height = subdivisions;
+	    var img_context = canvas.getContext( '2d' );
+	    
+	    var size = subdivisions * subdivisions, data = new Float32Array( size );
+	    
+	    img_context.drawImage(img,0,0);
+	    
+	    var imgd = img_context.getImageData(0, 0, subdivisions, subdivisions);
+	    var pix = imgd.data;
+	    
+	    var j=0;
+	    for (var i = 0, n = pix.length; i < n; i += (4)) {
+		var all = pix[i]+pix[i+1]+pix[i+2];
+		data[j++] = min_height + all/(255+255+255) * max_height;
+	    }
+	    self.geometry = new Grid_Patch( subdivisions, subdivisions, i => Vec.of(0, data[Math.floor(i * subdivisions * subdivisions)], i),
+					    (j, p, i) => Vec.of(j, data[Math.floor(i * subdivisions * subdivisions + j * subdivisions)], i), [[0,1], [1,0]]);
+	    self.height_data = data;
+	    self.submit_shapes( context, { map: self.geometry } );
+	    self.loaded = true;
+	};
+	img.src = image;
+    }
+
+    draw(graphics_state) {
+	if (this.loaded)
+	    this.geometry.draw(graphics_state, Mat4.scale([this.width,1,this.depth]).times(Mat4.translation([-0.5,0,-0.5])), this.material);
+    }
+
+    sample_height(world_x, world_z) {
+	var subdivisions = this.subdivisions;
+	var z = (world_z + this.depth/2)/this.depth * subdivisions;
+	var z1 = Math.ceil(z);
+	var z0 = Math.floor(z);
+	var x = (world_x + this.width/2)/this.width * subdivisions;
+	var x1 = Math.ceil(x);
+	var x0 = Math.floor(x);
+	var x0_z_height = this.height_data[z0 * subdivisions + x0] * (z1 - z) + this.height_data[z1 * subdivisions + x0] * (z - z0);
+	var x1_z_height = this.height_data[z0 * subdivisions + x1] * (z1 - z) + this.height_data[z1 * subdivisions + x1] * (z - z0);
+	return x0_z_height * (x1 - x) + x1_z_height * (x - x0);
+    }
+}
+
+class Player extends Scene_Component {
+    constructor(context, height_map) {
+	super(context);
+	
+	this.height_map = height_map;
+	
+	this.pos = Vec.of(150,0,1);
+	this.dir = Vec.of(0,0,1);
+	this.azimuth = 0;
+	this.pitch  = 0;
+	this.up = Vec.of(0,1,0);
+	this.speed = 6.705; // 15mph running speed
+	this.forward = 0;
+	this.backward = 0;
+	this.left = 0;
+	this.right = 0;
+	this.radians_per_frame = 1/200;
+
+	// *** Mouse controls: ***
+	this.mouse = { "from_center": Vec.of( 0,0 ) };                           // Measure mouse steering, for rotating the flyaround camera:
+	let canvas = context.canvas;
+	const mouse_position = ( e, rect = canvas.getBoundingClientRect() ) => 
+              Vec.of( e.clientX - (rect.left + rect.right)/2, e.clientY - (rect.bottom + rect.top)/2 );
+	// Set up mouse response.  The last one stops us from reacting if the mouse leaves the canvas.
+	document.addEventListener( "mouseup",   e => { this.mouse.anchor = undefined; } );
+	canvas  .addEventListener( "mousedown", e => { e.preventDefault(); this.mouse.anchor      = mouse_position(e); } );
+	canvas  .addEventListener( "mousemove", e => { e.preventDefault(); this.mouse.from_center = mouse_position(e); } );
+	canvas  .addEventListener( "mouseout",  e => { if( !this.mouse.anchor ) this.mouse.from_center.scale(0) } );  
+	
+	this.key_triggered_button( "Forward", [ "w" ], () => this.forward = 1, undefined, () => this.forward = 0 );
+	this.key_triggered_button( "Backward", [ "s" ], () => this.backward = 1, undefined, () => this.backward = 0 );
+	this.key_triggered_button( "Left", [ "a" ], () => this.left = 1, undefined, () => this.left = 0 );
+	this.key_triggered_button( "Right", [ "d" ], () => this.right = 1, undefined, () => this.right = 0 );
+    }
+
+    calculateMovement(dt, leeway = 70) {
+	if (this.mouse.from_center[0] > leeway || this.mouse.from_center[0] < -leeway) {
+	    this.azimuth += this.mouse.from_center[0] * this.radians_per_frame * dt;
+	}
+	if (this.mouse.from_center[1] > leeway || this.mouse.from_center[1] < -leeway) {
+	    this.pitch += this.mouse.from_center[1] * this.radians_per_frame * dt;
+	    if (this.pitch > Math.PI/2) this.pitch = Math.PI/2;
+	    else if (this.pitch < -Math.PI/2) this.pitch = -Math.PI/2;
+	}
+	this.dir = Mat4.rotation(this.azimuth, Vec.of(0,-1,0)).times(Mat4.rotation(this.pitch, Vec.of(1,0,0))).times(Vec.of(0,0,1,0)).to3();
+
+	var right = this.dir.cross(this.up);
+	this.pos[0] += this.forward * this.dir[0] * this.speed * dt;
+	this.pos[2] += this.forward * this.dir[2] * this.speed * dt;
+
+	this.pos[0] -= this.backward * this.dir[0] * this.speed * dt;
+	this.pos[2] -= this.backward * this.dir[2] * this.speed * dt;
+
+	this.pos[0] += this.right * right[0] * this.speed * dt;
+	this.pos[2] += this.right * right[2] * this.speed * dt;
+
+	this.pos[0] -= this.left * right[0] * this.speed * dt;
+	this.pos[2] -= this.left * right[2] * this.speed * dt;
+
+	if(this.height_map.loaded) {
+	    this.pos[1] = this.height_map.sample_height(this.pos[0], this.pos[2]) + 1.75;
+	}
+    }
+
+    draw(graphics_state) {
+	this.calculateMovement(graphics_state.animation_delta_time / 1000);
+	graphics_state.camera_transform = Mat4.look_at(this.pos, this.pos.plus(this.dir), this.up);
+    }
+}
+
+class Water extends Scene_Component {
+    constructor(context, size, z_pos) {
+	super(context);
+	this.size = size;
+	this.z_pos = z_pos;
+	this.geometry = new Square();
+	for( var i = 0; i < this.geometry.texture_coords.length; i++ ) {
+	    this.geometry.texture_coords[i] = this.geometry.texture_coords[i].times(10);
+	}
+
+	this.material = context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.85), { ambient: 0.5, specularity: 1.0, diffusivity: 0.3, reflectivity: 0.30, texture: context.get_instance( "assets/water.jpg", true ), envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } );
+	
+	this.submit_shapes(context, {water: this.geometry});
+    }
+
+    draw(graphics_state) {
+	this.geometry.draw(graphics_state, Mat4.translation([0,this.z_pos,0]).times(Mat4.rotation(Math.PI/2, Vec.of(1,0,0))).times(Mat4.scale([this.size/2, this.size/2, this.size/2])), this.material);
+    }
+}
+
+class Sky_Box extends Scene_Component {
+    constructor(context, size) {
+	super(context);
+
+	this.size = size;
+	this.geometry = new Cube();
+	this.material = context.get_instance( Skybox_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, cube_texture: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } );
+
+	this.submit_shapes(context, {skybox: this.geometry});
+    }
+
+    draw(graphics_state) {
+	this.geometry.draw(graphics_state, Mat4.scale([this.size/2, this.size/2, this.size/2]), this.material);
+    }
+}
 window.Final_Project = window.classes.Final_Project =
 class Final_Project extends Scene_Component
   { constructor( context, control_box )     // The scene begins by requesting the camera, shapes, and materials it will need.
-      { super(   context, control_box );    // First, include a secondary Scene that provides movement controls:
-        if( !context.globals.has_controls   ) 
-          context.register_scene_component( new Movement_Controls( context, control_box.parentElement.insertCell() ) ); 
-
-        context.globals.graphics_state.camera_transform = Mat4.look_at( Vec.of( 0,0,0 ), Vec.of( 0,0,100 ), Vec.of( 0,1,0 ) );
-        this.initial_camera_location = Mat4.inverse( context.globals.graphics_state.camera_transform );
-
-        const r = context.width/context.height;
-        context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/4, r, .1, 1500 );
-
-	create_height_map("assets/heightmap.jpg", 128, -200, 300, (gp) => {
-            const shapes = { skybox: new Cube(),
-			     water: new Square(),
-			     map: gp
-			   };
-	    for( var i = 0; i < shapes.water.texture_coords.length; i++ ) {
-		shapes.water.texture_coords[i] = shapes.water.texture_coords[i].times(10);
-	    }
-            this.submit_shapes( context, shapes );
-	});
-        
-                                     // Make some Material objects available to you:
-        this.materials =
-        {
-	    skybox: context.get_instance( Skybox_Shader ).material( Color.of( 0, 0, 0, 1 ), { ambient: 1, specularity: 0, diffusivity: 0, cube_texture: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } ),
-	    water: context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.85), { ambient: 0.5, specularity: 0, diffusivity: 0.8, reflectivity: 0.30, texture: context.get_instance( "assets/water.jpg", true ), envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } ),
-	    map: context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.5, specularity: 0, diffusivity: 0.8, texture: context.get_instance( "assets/terrain.jpg", true) } )
-	}
-
-        this.lights = [ new Light( Vec.of( -5,5,5,1 ), Color.of( 0,1,1,1 ), 100000 ) ];
-      }
+    { super(   context, control_box );    // First, include a secondary Scene that provides movement controls:
+      this.map = new Height_Map(context, "assets/heightmap.jpg", 1000, 1000, 128, -200, 300);
+      this.player = new Player(context, this.map);
+      this.water = new Water(context, 1000, -110);
+      this.skybox = new Sky_Box(context, 1000);
+	  
+      const r = context.width/context.height;
+      context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 1500 );
+	  
+      this.lights = [ new Light( Vec.of( 500,500,500,1 ), Color.of( 1,1,0.5,1 ), 10000000 ) ];
+    }
     make_control_panel()            // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
-      {       }
+    {
+    }    
     display( graphics_state )
     {
-	if (!this.shapes) return;
 	graphics_state.lights = this.lights;
         const t = graphics_state.animation_time / 1000, dt = graphics_state.animation_delta_time / 1000;
 
-	this.shapes.skybox.draw(graphics_state, Mat4.scale([500, 500, 500]), this.materials.skybox);
-	this.shapes.map.draw(graphics_state, Mat4.scale([1000,1,1000]).times(Mat4.translation([-0.5,0,-0.5])), this.materials.map);
-	this.shapes.water.draw(graphics_state, Mat4.translation([0,-110,0]).times(Mat4.rotation(Math.PI/2, Vec.of(1,0,0))).times(Mat4.scale([500, 500, 500])), this.materials.water);	
+	this.player.draw(graphics_state);
+	this.skybox.draw(graphics_state);
+	this.map.draw(graphics_state);
+	this.water.draw(graphics_state);
     }
   }
-
-
-function create_height_map (image, subdivisions, min_height, max_height, callback) {
-    var img = new Image();
-    img.onload = () => {	
-	var canvas = document.createElement( 'canvas' );
-	canvas.width = subdivisions;
-	canvas.height = subdivisions;
-	var context = canvas.getContext( '2d' );
-
-	var size = subdivisions * subdivisions, data = new Float32Array( size );
-	
-	context.drawImage(img,0,0);
-	
-	var imgd = context.getImageData(0, 0, subdivisions, subdivisions);
-	var pix = imgd.data;
-	
-	var j=0;
-	for (var i = 0, n = pix.length; i < n; i += (4)) {
-	    var all = pix[i]+pix[i+1]+pix[i+2];
-	    data[j++] = min_height + all/(255+255+255) * max_height;
-	}
-	var gp = new Grid_Patch( subdivisions, subdivisions, i => Vec.of(0, data[Math.floor(i * subdivisions * subdivisions)], i),
-				 (j, p, i) => Vec.of(j, data[Math.floor(i * subdivisions * subdivisions + j * subdivisions)], i), [[0,1], [1,0]]);
-	callback(gp);
-    };
-    img.src = image;
-}
