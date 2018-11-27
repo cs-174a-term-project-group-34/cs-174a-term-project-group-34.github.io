@@ -70,7 +70,6 @@ class Player extends Scene_Component {
 
 	this.pos = initial_pos;
 	this.dir = initial_dir;
-	this.yaw = 0;
 	this.pitch  = 0;
 	this.up = Vec.of(0,1,0);
 
@@ -101,12 +100,13 @@ class Player extends Scene_Component {
     }
 
     calculateMovement(dt, leeway = 70) {
-	this.yaw += this.mouse.movement[0] * this.radians_per_frame * dt;
-	this.pitch +=  this.mouse.movement[1] * this.radians_per_frame * dt;
-	this.mouse.movement[0] = 0; this.mouse.movement[1] = 0;
-	if (this.pitch >= Math.PI/2 - 0.001) this.pitch = Math.PI/2 - 0.001;
-	else if (this.pitch < -Math.PI/2 + 0.001) this.pitch = -Math.PI/2 + 0.001;
-	this.dir = Mat4.rotation(this.yaw, Vec.of(0,-1,0)).times(Mat4.rotation(this.pitch, Vec.of(1,0,0))).times(Vec.of(0,0,1,0)).to3();
+	var new_pitch =  this.pitch + this.mouse.movement[1] * this.radians_per_frame * dt;
+	if (new_pitch >= Math.PI/2 - 0.001) new_pitch = Math.PI/2 - 0.001;
+	else if (new_pitch < -Math.PI/2 + 0.001) new_pitch = -Math.PI/2 + 0.001;
+
+	var axis = this.up.cross(this.dir).normalized();
+	this.dir = Mat4.rotation(this.mouse.movement[0] * this.radians_per_frame * dt, Vec.of(0,-1,0)).times(Mat4.rotation(new_pitch - this.pitch, axis)).times(this.dir.to4(false)).to3();
+	this.pitch = new_pitch; this.mouse.movement[0] = 0; this.mouse.movement[1] = 0;
 
 	var right = this.dir.cross(this.up);
 	this.pos[0] += this.forward * this.dir[0] * this.speed * dt;
