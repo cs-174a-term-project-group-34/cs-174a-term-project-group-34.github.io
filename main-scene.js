@@ -59,8 +59,8 @@ class Height_Map extends Scene_Component {
 }
 
 class Player extends Scene_Component {
-    constructor(context, height_map) {
-	super(context);
+    constructor(context, control_box, height_map) {
+	super(context, control_box);
 	
 	this.height_map = height_map;
 	
@@ -74,18 +74,22 @@ class Player extends Scene_Component {
 	this.backward = 0;
 	this.left = 0;
 	this.right = 0;
-	this.radians_per_frame = 1/200;
+	this.radians_per_frame = 1/5;
 
 	// *** Mouse controls: ***
-	this.mouse = { "from_center": Vec.of( 0,0 ) };                           // Measure mouse steering, for rotating the flyaround camera:
+	this.mouse = { "movement": Vec.of( 0,0 ) };                           // Measure mouse steering, for rotating the flyaround camera:
 	let canvas = context.canvas;
 	const mouse_position = ( e, rect = canvas.getBoundingClientRect() ) => 
               Vec.of( e.clientX - (rect.left + rect.right)/2, e.clientY - (rect.bottom + rect.top)/2 );
 	// Set up mouse response.  The last one stops us from reacting if the mouse leaves the canvas.
-	document.addEventListener( "mouseup",   e => { this.mouse.anchor = undefined; } );
-	canvas  .addEventListener( "mousedown", e => { e.preventDefault(); this.mouse.anchor      = mouse_position(e); } );
-	canvas  .addEventListener( "mousemove", e => { e.preventDefault(); this.mouse.from_center = mouse_position(e); } );
-	canvas  .addEventListener( "mouseout",  e => { if( !this.mouse.anchor ) this.mouse.from_center.scale(0) } );  
+	canvas  .addEventListener( "mousedown", e => { canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;canvas.requestPointerLock() } );
+	canvas  .addEventListener( "mousemove", e => {
+	    e.preventDefault();
+	    if( document.pointerLockElement === canvas || document.mozPointerLockElement === canvas ) {
+		this.mouse.movement[0] = e.movementX;
+		this.mouse.movement[1] = e.movementY;
+	    }
+	} );
 	
 	this.key_triggered_button( "Forward", [ "w" ], () => this.forward = 1, undefined, () => this.forward = 0 );
 	this.key_triggered_button( "Backward", [ "s" ], () => this.backward = 1, undefined, () => this.backward = 0 );
@@ -94,14 +98,11 @@ class Player extends Scene_Component {
     }
 
     calculateMovement(dt, leeway = 70) {
-	if (this.mouse.from_center[0] > leeway || this.mouse.from_center[0] < -leeway) {
-	    this.azimuth += this.mouse.from_center[0] * this.radians_per_frame * dt;
-	}
-	if (this.mouse.from_center[1] > leeway || this.mouse.from_center[1] < -leeway) {
-	    this.pitch += this.mouse.from_center[1] * this.radians_per_frame * dt;
-	    if (this.pitch > Math.PI/2) this.pitch = Math.PI/2;
-	    else if (this.pitch < -Math.PI/2) this.pitch = -Math.PI/2;
-	}
+	this.azimuth += this.mouse.movement[0] * this.radians_per_frame * dt;
+	this.pitch +=  this.mouse.movement[1] * this.radians_per_frame * dt;
+	this.mouse.movement[0] = 0; this.mouse.movement[1] = 0;
+	if (this.pitch >= Math.PI/2 - 0.001) this.pitch = Math.PI/2 - 0.001;
+	else if (this.pitch < -Math.PI/2 + 0.001) this.pitch = -Math.PI/2 + 0.001;
 	this.dir = Mat4.rotation(this.azimuth, Vec.of(0,-1,0)).times(Mat4.rotation(this.pitch, Vec.of(1,0,0))).times(Vec.of(0,0,1,0)).to3();
 
 	var right = this.dir.cross(this.up);
@@ -168,7 +169,7 @@ class Final_Project extends Scene_Component
   { constructor( context, control_box )     // The scene begins by requesting the camera, shapes, and materials it will need.
     { super(   context, control_box );    // First, include a secondary Scene that provides movement controls:
       this.map = new Height_Map(context, "assets/heightmap.jpg", 1000, 1000, 128, -200, 300);
-      this.player = new Player(context, this.map);
+      this.player = new Player(context, control_box.parentElement.insertCell(), this.map);
       this.water = new Water(context, 1000, -110);
       this.skybox = new Sky_Box(context, 1000);
 	  
@@ -179,6 +180,7 @@ class Final_Project extends Scene_Component
     }
     make_control_panel()            // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
     {
+	this.key_triggered_button( "Unlock Mouse", [ "u" ], () => { document.exitPointerLock = document.exitPointerLock    || document.mozExitPointerLock;   document.exitPointerLock(); } );
     }    
     display( graphics_state )
     {
