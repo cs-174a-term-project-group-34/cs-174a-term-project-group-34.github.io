@@ -13,12 +13,44 @@ class FishingRod extends Entity
                                      // Make some Material objects available to you:
         this.clay   = context.get_instance( Phong_Shader ).material( Color.of( .9,.5,.9, 1 ), { ambient: .4, diffusivity: .4 } );
         this.plastic = this.clay.override({ specularity: .6 });
+        this.casting = 0;
+        this.windUp = 0;
+        this.casted = 0;
+        this.fishing = 1;
+        this.key_triggered_button( "Cast", [ "k" ], () => this.casting = this.windUp = 1, undefined, () => this.windUp = 0 );
+        this.key_triggered_button( "Reel", [ "l" ], () => this.casting = 0);
+        this.key_triggered_button( "Fish", [ "f" ], () => this.fishing = !this.fishing);
+        this.time = 0;
       }
-    update(){
-
+    update(graphics_state){
+        if(!this.fishing){
+            this.casting = 0;
+            this.windUp = 0;
+            this.casted = 0;
+            this.time = 0;
+        }
+        if(this.casting){
+            this.time += graphics_state.animation_delta_time/2;
+            if(this.windUp && !this.casted){
+                if(this.time > 500){
+                    this.time = 500;
+                }
+            }else{
+                this.casted = 1;
+            }
+            if(this.time > 1200){
+                this.time = 1200;
+            }
+        }else{
+            this.time = 0;
+            this.casted = 0;
+        }
     }
     draw( graphics_state )
       {
+          if(!this.fishing){
+              return;
+          }
         const REST = 0;
         const WIND_UP = 500;
         const FLICK = 600;
@@ -37,7 +69,7 @@ class FishingRod extends Entity
         const REST_ANGLE = Math.asin(BUBBLE_SIZE/MIN_LINE_LEN);
         const MAX_LINE_LEN = 10;
         const LINE_ANGLE = Math.PI/2+Math.asin(ROD_HEIGHT/MAX_LINE_LEN)-ANGLE_C-ANGLE_B;
-        var time = (graphics_state.animation_time/2) % 1200;
+        var time = this.time;// % 1200;
         //Position rod in fpv
         let model_transform = Mat4.inverse(graphics_state.camera_transform);
         model_transform = model_transform.times( Mat4.translation([ 0.5, -0.3, -1 ]) );
@@ -96,7 +128,7 @@ class FishingRod extends Entity
             scale += (MAX_LINE_LEN-MIN_LINE_LEN)*(STRAIGTEN_EXTENSION+(1-STRAIGTEN_EXTENSION)*(time-FLICK)/(FALL-FLICK));
         }
         model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
-        this.shapes.box.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC/4, scale, ROD_CIRC/4 ])), this.plastic.override({ color: Color.of(0,0,0.2,0.5) }) );
+        this.shapes.box.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC/4, scale, ROD_CIRC/4 ])), this.plastic.override({ color: Color.of(0,0,0.2,0.2) }) );
 
         // Draw Bubble
         model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
