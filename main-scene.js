@@ -8,7 +8,7 @@ class Height_Map extends Entity {
 	this.max_height = max_height;
 
 	this.loaded = false;
-	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.05, specularity: 0.0, diffusivity: 1.0, texture: context.get_instance( "assets/terrain.jpg", true), shadow_texture: shadow_map } );
+	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.05, specularity: 0.0, diffusivity: 1.0, texture: context.get_instance( "assets/terrain.jpg", true), shadow_map: shadow_map } );
 
 	var self = this;
 	var img = new Image();
@@ -41,7 +41,7 @@ class Height_Map extends Entity {
 
     draw(graphics_state, material_override) {
 	if (this.loaded)
-	    this.geometry.draw(graphics_state, Mat4.scale([this.width,1,this.depth]).times(Mat4.translation([-0.5,0,-0.5])), this.get_material(material_override));
+	    this.geometry.draw(graphics_state, Mat4.scale([this.width,1,this.depth]).times(Mat4.translation([-0.5,0,-0.5])), this.get_material(this.material, material_override));
     }
 
     sample_height(world_x, world_z) {
@@ -135,22 +135,22 @@ class Player extends Entity {
 }
 
 class Water extends Entity {
-    constructor(context, size, z_pos) {
+    constructor(context, shadow_map, size, z_pos) {
 	super(context);
 	this.size = size;
 	this.z_pos = z_pos;
-	this.geometry = new Square();
+	this.geometry = new Cube();
 	for( var i = 0; i < this.geometry.texture_coords.length; i++ ) {
 	    this.geometry.texture_coords[i] = this.geometry.texture_coords[i].times(10);
 	}
 
-	this.material = context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.85), { ambient: 0.5, specularity: 1.0, diffusivity: 0.3, reflectivity: 0.30, texture: context.get_instance( "assets/water.jpg", true ), envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } );
+	this.material = context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.85), { ambient: 0.3, specularity: 1.0, diffusivity: 0.5, reflectivity: 0.30, texture: context.get_instance( "assets/water.jpg", true ), shadow_map: shadow_map, envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } );
 
 	this.submit_shapes(context, {water: this.geometry});
     }
 
-    draw(graphics_state) {
-	this.geometry.draw(graphics_state, Mat4.translation([0,this.z_pos,0]).times(Mat4.rotation(Math.PI/2, Vec.of(1,0,0))).times(Mat4.scale([this.size/2, this.size/2, this.size/2])), this.material);
+    draw(graphics_state, material_override) {
+	this.geometry.draw(graphics_state, Mat4.translation([0,this.z_pos,0]).times(Mat4.scale([this.size/2, 0.05, this.size/2])), this.get_material(this.material, material_override));
     }
 }
 
@@ -180,14 +180,15 @@ class Final_Project extends Scene_Component
       this.create_shadow_framebuffer(context.gl);
 
       this.map = new Height_Map(context, this.shadow_map, "assets/heightmap.jpg", 1000, 1000, 128, -200, 300);
-      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map), new Water(context, 1000, -110), new Sky_Box(context, 1000), new FishingRod(context, control_box.parentElement.insertCell())]
+      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map), this.water = new Water(context, this.shadow_map, 1000, -110), new Sky_Box(context, 1000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
+      this.shadowers = [ this.map, this.fishing_rod ];
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 1500 );
 
       this.light = new Light( Vec.of( 500,500,-500,0 ), Color.of( 1,1,0.5,1 ), 10000 );
     }
     create_shadow_framebuffer(gl) {
-	this.shadow_map_size = 1024;
+	this.shadow_map_size = 2048;
 
 	gl.getExtension("WEBGL_depth_texture");
 	this.shadow_map = new Texture(gl, "", false, false);
@@ -212,8 +213,6 @@ class Final_Project extends Scene_Component
     make_control_panel()            // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
     {
 	this.key_triggered_button( "Unlock Mouse", [ "u" ], () => { document.exitPointerLock = document.exitPointerLock    || document.mozExitPointerLock;   document.exitPointerLock(); } );
-	this.result_img = this.control_panel.appendChild( Object.assign( document.createElement( "img" ), 
-									 { style:"width:"+this.shadow_map_size+"px; height:" +this.shadow_map_size +"px" } ) );
     }
     display( graphics_state )
     {
@@ -228,7 +227,9 @@ class Final_Project extends Scene_Component
 	gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadow_map_fb);
 	gl.viewport(0,0, this.shadow_map_size, this.shadow_map_size);
 	this.webgl_manager.gl.clear( this.webgl_manager.gl.DEPTH_BUFFER_BIT );
-	this.map.draw(graphics_state, this.shadow_shader);
+	for (var i = 0; i < this.shadowers.length; i++) {
+	    this.shadowers[i].draw(graphics_state, this.shadow_shader);
+	}
 	
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);

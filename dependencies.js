@@ -385,12 +385,13 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
   shared_glsl_code()            // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
     { return `precision mediump float;
         uniform float ambient, diffusivity, specularity, smoothness, animation_time, attenuation_factor;
-        uniform bool USE_TEXTURE, USE_SHADOW_TEXTURE;               // Flags for alternate shading methods
+        uniform bool USE_TEXTURE, USE_SHADOW_MAP;               // Flags for alternate shading methods
         uniform vec4 lightPosition, lightColor, shapeColor;
         varying vec3 N, E;                    // Specifier "varying" means a variable's final value will be passed from the vertex shader 
         varying vec2 f_tex_coord;             // on to the next phase (fragment shader), then interpolated per-fragment, weighted by the 
         varying vec4 VERTEX_COLOR;            // pixel fragment's proximity to each of the 3 vertices (barycentric interpolation).
         varying vec4 shadow_coord;
+        varying vec4 worldspace_coord;
         varying vec3 L, H;
         varying float dist;        
         `;
@@ -405,7 +406,8 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
 
         void main()
         { gl_Position = projection_camera_model_transform * vec4(object_space_pos, 1.0);     // The vertex's final resting place (in NDCS).
-          shadow_coord = light_projection_camera_transform * model_transform * vec4(object_space_pos, 1.0);
+          worldspace_coord = model_transform * vec4(object_space_pos, 1.0);
+          shadow_coord = light_projection_camera_transform * worldspace_coord;
           N = normalize( inverse_transpose_modelview * normal );                             // The final normal vector in screen space.
           f_tex_coord = tex_coord;                                         // Directly use original texture coords and interpolate between.
           
@@ -425,16 +427,63 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
                                  // Fragments affect the final image or get discarded due to depth.
       return `
         uniform sampler2D texture;
-        uniform sampler2D shadow_texture;
+        uniform sampler2D shadow_map;
         vec4 color;
+
+        float random(vec3 seed, int i) {
+            vec4 seed4 = vec4(seed, float(i));
+            float dot_prod = dot(seed4, vec4(12.9898,78.233,45.164,94.673));
+            return fract(sin(dot_prod) * 43758.5453);
+        }
+
+        vec2 poissonDiskSample(int i) {
+if(i == 0)
+return vec2( -0.94201624, -0.39906216 );
+if(i==1)
+return vec2( 0.94558609, -0.76890725 );
+if(i==2)
+return vec2( -0.094184101, -0.92938870 );
+if(i==3)
+return vec2( 0.34495938, 0.29387760 );
+if(i==4)
+return vec2( -0.91588581, 0.45771432 );
+if(i==5)
+return vec2( -0.81544232, -0.87912464 );
+if(i==6)
+return vec2( -0.38277543, 0.27676845 );
+if(i==7)
+return vec2( 0.97484398, 0.75648379 );
+if(i==8)
+return vec2( 0.44323325, -0.97511554 ); 
+if(i==9)
+return vec2( 0.53742981, -0.47373420 );
+if(i==10)
+return vec2( -0.26496911, -0.41893023 );
+if(i==11)
+return vec2( 0.79197514, 0.19090188 );
+if(i==12)
+return vec2( -0.24188840, 0.99706507 ); 
+if(i==13)
+return vec2( -0.81409955, 0.91437590 );
+if(i==14)
+return vec2( 0.19984126, 0.78641367 );
+if(i==15)
+return vec2( 0.14383161, -0.14100790 );
+        }
 
         vec3 phong_model_lights( vec3 N )
           { vec3 result = vec3(0.0);
             float visibility = 1.0;
             float bias = 0.005*tan(acos(dot(N,L)));
             bias = bias < 0.0 ? 0.0 : ( bias > 0.01 ? 0.01 : bias );
-            if ( texture2D( shadow_texture, shadow_coord.xy ).z  <  shadow_coord.z-bias ){
-                        visibility = 0.5;
+            const int samples = 4;
+            if (USE_SHADOW_MAP) {
+                for (int i=0;i<samples;i++){
+                    int index = int(mod(16.0*random(floor(worldspace_coord.xyz*1000.0), i), 16.0));
+                    if ( texture2D( shadow_map, shadow_coord.xy + poissonDiskSample(index)/1000.0 ).z  <  shadow_coord.z-bias ){
+                        visibility-=0.8/float(samples);
+                    }
+                }
             }
             float attenuation_multiplier = 1.0; /// (1.0 + attenuation_factor * (dist * dist));
             float diffuse  =      max( dot(N, L), 0.0 );
@@ -467,7 +516,7 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
       gl.uniform1f ( gpu.specularity_loc,    material.specularity );
 	gl.uniform1f ( gpu.smoothness_loc,     material.smoothness  );
 	gl.uniform1i(gpu.texture_loc, 0);
-	gl.uniform1i(gpu.shadow_texture_loc, 1);
+	gl.uniform1i(gpu.shadow_map_loc, 1);
 
       if( material.texture )                           // NOTE: To signal not to draw a texture, omit the texture parameter from Materials.
       { gpu.shader_attributes["tex_coord"].enabled = true;
@@ -477,13 +526,13 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
       }
 	else  { gl.uniform1f ( gpu.USE_TEXTURE_loc, 0 ); gpu.shader_attributes["tex_coord"].enabled = false; }
 
-	if( material.shadow_texture )
+	if( material.shadow_map )
 	{
-	    gl.uniform1f(gpu.USE_SHADOW_TEXTURE_loc, 1);
+	    gl.uniform1f(gpu.USE_SHADOW_MAP_loc, 1);
 	    gl.activeTexture(gl.TEXTURE1);
-	    gl.bindTexture(gl.TEXTURE_2D, material.shadow_texture.id);
+	    gl.bindTexture(gl.TEXTURE_2D, material.shadow_map.id);
 	} else {
-	    gl.uniform1f(gpu.USE_SHADOW_TEXTURE_loc, 0);
+	    gl.uniform1f(gpu.USE_SHADOW_MAP_loc, 0);
 	}
 
 	if( !g_state.light )  return;
@@ -527,23 +576,15 @@ class Water_Shader extends Phong_Shader
     { return `precision mediump float;
         uniform mat4 inverse_camera_transform;
         uniform float ambient, diffusivity, specularity, smoothness, animation_time, attenuation_factor, reflectivity;
-        uniform bool USE_TEXTURE, USE_ENVMAP;               // Flags for alternate shading methods
+        uniform bool USE_TEXTURE, USE_ENVMAP, USE_SHADOW_MAP;               // Flags for alternate shading methods
         uniform vec4 lightPosition, lightColor, shapeColor;
         varying vec3 N, E;                    // Specifier "varying" means a variable's final value will be passed from the vertex shader 
         varying vec2 f_tex_coord;             // on to the next phase (fragment shader), then interpolated per-fragment, weighted by the 
+        varying vec4 shadow_coord;
+        varying vec4 worldspace_coord;
         varying vec4 VERTEX_COLOR;            // pixel fragment's proximity to each of the 3 vertices (barycentric interpolation).
         varying vec3 L, H;
         varying float dist;
-        
-        vec3 phong_model_lights( vec3 N )
-          { vec3 result = vec3(0.0);
-                float attenuation_multiplier = 1.0 / (1.0 + attenuation_factor * (dist * dist));
-                float diffuse  =      max( dot(N, L), 0.0 );
-                float specular = pow( max( dot(N, H), 0.0 ), smoothness );
-
-                result += attenuation_multiplier * ( shapeColor.xyz * diffusivity * diffuse + lightColor.xyz * specularity * specular );
-            return result;
-          }
         `;
     }
   vertex_glsl_code()           // ********* VERTEX SHADER *********
@@ -551,14 +592,15 @@ class Water_Shader extends Phong_Shader
         attribute vec3 object_space_pos, normal;
         attribute vec2 tex_coord;
 
-        uniform mat4 camera_transform, camera_model_transform, projection_camera_model_transform;
+        uniform mat4 model_transform, camera_transform, camera_model_transform, projection_camera_model_transform, light_projection_camera_transform;
         uniform mat3 inverse_transpose_modelview;
 
         void main()
         { gl_Position = projection_camera_model_transform * vec4(object_space_pos, 1.0);     // The vertex's final resting place (in NDCS).
+          worldspace_coord = model_transform * vec4(object_space_pos, 1.0);
+          shadow_coord = light_projection_camera_transform * worldspace_coord;
           N = normalize( inverse_transpose_modelview * normal );                             // The final normal vector in screen space.
           f_tex_coord = tex_coord;                                         // Directly use original texture coords and interpolate between.
-          
           
           vec3 screen_space_pos = ( camera_model_transform * vec4(object_space_pos, 1.0) ).xyz;
           E = normalize( -screen_space_pos );
@@ -577,19 +619,87 @@ class Water_Shader extends Phong_Shader
       return `
         uniform sampler2D texture;
         uniform samplerCube envmap;
+        uniform sampler2D shadow_map;
+
+        vec4 color;
+
+        float random(vec3 seed, int i) {
+            vec4 seed4 = vec4(seed, float(i));
+            float dot_prod = dot(seed4, vec4(12.9898,78.233,45.164,94.673));
+            return fract(sin(dot_prod) * 43758.5453);
+        }
+
+        vec2 poissonDiskSample(int i) {
+if(i == 0)
+return vec2( -0.94201624, -0.39906216 );
+if(i==1)
+return vec2( 0.94558609, -0.76890725 );
+if(i==2)
+return vec2( -0.094184101, -0.92938870 );
+if(i==3)
+return vec2( 0.34495938, 0.29387760 );
+if(i==4)
+return vec2( -0.91588581, 0.45771432 );
+if(i==5)
+return vec2( -0.81544232, -0.87912464 );
+if(i==6)
+return vec2( -0.38277543, 0.27676845 );
+if(i==7)
+return vec2( 0.97484398, 0.75648379 );
+if(i==8)
+return vec2( 0.44323325, -0.97511554 ); 
+if(i==9)
+return vec2( 0.53742981, -0.47373420 );
+if(i==10)
+return vec2( -0.26496911, -0.41893023 );
+if(i==11)
+return vec2( 0.79197514, 0.19090188 );
+if(i==12)
+return vec2( -0.24188840, 0.99706507 ); 
+if(i==13)
+return vec2( -0.81409955, 0.91437590 );
+if(i==14)
+return vec2( 0.19984126, 0.78641367 );
+if(i==15)
+return vec2( 0.14383161, -0.14100790 );
+        }
+
+        vec3 phong_model_lights( vec3 N )
+          { vec3 result = vec3(0.0);
+            float visibility = 1.0;
+            float bias = 0.005*tan(acos(dot(N,L)));
+            bias = bias < 0.0 ? 0.0 : ( bias > 0.01 ? 0.01 : bias );
+            const int samples = 4;
+            if (USE_SHADOW_MAP) {
+                for (int i=0;i<samples;i++){
+                    int index = int(mod(16.0*random(floor(worldspace_coord.xyz*1000.0), i), 16.0));
+                    if ( texture2D( shadow_map, shadow_coord.xy + poissonDiskSample(index)/1000.0 ).z  <  shadow_coord.z-bias ){
+                        visibility-=0.8/float(samples);
+                    }
+                }
+            }
+            float attenuation_multiplier = 1.0; /// (1.0 + attenuation_factor * (dist * dist));
+            float diffuse  =      max( dot(N, L), 0.0 );
+            float specular = pow( max( dot(N, H), 0.0 ), smoothness );
+
+            result += attenuation_multiplier * ( color.xyz * diffusivity * diffuse + lightColor.xyz * specularity * specular );
+            return visibility*result;
+          }
+
         void main()
         { 
-          vec4 tex_color = texture2D( texture, f_tex_coord );                         // Sample the texture image in the correct place.
+          vec4 tex_color = texture2D(texture, f_tex_coord);
           vec3 reflected = reflect(-E, N);
           reflected = vec3(inverse_camera_transform * vec4(reflected, 0.0));
-
           vec4 envmap_color = textureCube( envmap, reflected );
-                                                                                      // Compute an initial (ambient) color:
-          if( USE_TEXTURE ) gl_FragColor = vec4( ( tex_color.xyz + shapeColor.xyz ), shapeColor.w * tex_color.w ); 
-          else gl_FragColor = vec4( shapeColor.xyz, shapeColor.w );
-          if( USE_ENVMAP ) gl_FragColor.xyz = (1.0 - reflectivity) * gl_FragColor.xyz + reflectivity*(envmap_color.xyz);
-          gl_FragColor.xyz *= ambient;
-          gl_FragColor.xyz += phong_model_lights( N );
+
+          color = shapeColor;
+
+          if( USE_TEXTURE ) color = vec4(tex_color.xyz + color.xyz, tex_color.w * color.w);
+          if( USE_ENVMAP ) color = vec4(reflectivity*envmap_color.xyz + (1.0 - reflectivity)*color.xyz, envmap_color.w * color.w);
+          gl_FragColor = vec4( color.xyz * ambient, color.w );
+
+          gl_FragColor.xyz += phong_model_lights( N );                     // Compute the final color with contributions from lights.
         }`;
     }
     // Define how to synchronize our JavaScript's variables to the GPU's:
@@ -606,7 +716,8 @@ class Water_Shader extends Phong_Shader
 	gl.uniform1f ( gpu.reflectivity_loc, material.reflectivity );
 
       gl.uniform1i(gpu.texture_loc, 0);
-      gl.uniform1i(gpu.envmap_loc, 1);
+	gl.uniform1i(gpu.envmap_loc, 1);
+	gl.uniform1i(gpu.shadow_map_loc, 2);
 
       if( material.texture )                           // NOTE: To signal not to draw a texture, omit the texture parameter from Materials.
       { gpu.shader_attributes["tex_coord"].enabled = true;
@@ -624,10 +735,25 @@ class Water_Shader extends Phong_Shader
         gl.uniform1f(gpu.USE_ENVMAP_loc, 0);
       }
 
+	if( material.shadow_map )
+	{
+	    gl.uniform1f(gpu.USE_SHADOW_MAP_loc, 1);
+	    gl.activeTexture(gl.TEXTURE2);
+	    gl.bindTexture(gl.TEXTURE_2D, material.shadow_map.id);
+	} else {
+	    gl.uniform1f(gpu.USE_SHADOW_MAP_loc, 0);
+	}
+	
 	if( !g_state.light )  return;
 	gl.uniform4fv( gpu.lightPosition_loc,       g_state.light.position );
 	gl.uniform4fv( gpu.lightColor_loc,          g_state.light.color );
 	gl.uniform1f( gpu.attenuation_factor_loc,  g_state.light.attenuation );
+	var depth_bias = new Mat([0.5,0.0,0.0,0.5],
+				 [0.0,0.5,0.0,0.5],
+				 [0.0,0.0,0.5,0.5],
+				 [0.0,0.0,0.0,1.0]);
+	var depth_bias_PC = depth_bias.times(g_state.light.projection_transform).times(g_state.light.camera_transform);
+	gl.uniformMatrix4fv( gpu.light_projection_camera_transform_loc, false, Mat.flatten_2D_to_1D(depth_bias_PC.transposed()));
     }
 
     update_matrices( g_state, model_transform, gpu, gl )                                    // Helper function for sending matrices to GPU.
@@ -641,7 +767,8 @@ class Water_Shader extends Phong_Shader
                                                                   // the products we'll need of the of the three special matrices and just
                                                                   // cache and send those.  They will be the same throughout this draw
                                                                   // call, and thus across each instance of the vertex shader.
-                                                                  // Transpose them since the GPU expects matrices as column-major arrays.                                  
+        // Transpose them since the GPU expects matrices as column-major arrays.
+	gl.uniformMatrix4fv( gpu.model_transform_loc,                   false, Mat.flatten_2D_to_1D(     M .transposed() ) );	    
       gl.uniformMatrix4fv( gpu.camera_transform_loc,                  false, Mat.flatten_2D_to_1D(     C .transposed() ) );
       gl.uniformMatrix4fv( gpu.camera_model_transform_loc,            false, Mat.flatten_2D_to_1D(     CM.transposed() ) );
       gl.uniformMatrix4fv( gpu.projection_camera_model_transform_loc, false, Mat.flatten_2D_to_1D(    PCM.transposed() ) );
