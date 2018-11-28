@@ -8,7 +8,7 @@ class Height_Map extends Entity {
 	this.max_height = max_height;
 
 	this.loaded = false;
-	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.05, specularity: 0.0, diffusivity: 1.0, texture: context.get_instance( "assets/terrain.jpg", true), shadow_map: shadow_map } );
+	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.2, specularity: 0.0, diffusivity: 1.0, texture: context.get_instance( "assets/terrain.jpg", true), shadow_map: shadow_map } );
 
 	var self = this;
 	var img = new Image();
@@ -144,7 +144,7 @@ class Water extends Entity {
 	    this.geometry.texture_coords[i] = this.geometry.texture_coords[i].times(10);
 	}
 
-	this.material = context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.85), { ambient: 0.3, specularity: 1.0, diffusivity: 0.5, reflectivity: 0.30, texture: context.get_instance( "assets/water.jpg", true ), shadow_map: shadow_map, envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } );
+	this.material = context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.6), { ambient: 0.2, specularity: 1.0, diffusivity: 1.0, reflectivity: 0.3, texture: context.get_instance( "assets/water.jpg", true ), shadow_map: shadow_map, envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } );
 
 	this.submit_shapes(context, {water: this.geometry});
     }
