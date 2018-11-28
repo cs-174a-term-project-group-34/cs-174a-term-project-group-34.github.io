@@ -3,7 +3,7 @@ class FishingRod extends Entity
   { constructor( context, control_box )     // The scene begins by requesting the camera, shapes, and materials it will need.
       { super(   context, control_box );    // First, include a secondary Scene that provides movement controls:
 
-        const shapes = { 'box': new Cube(),               // At the beginning of our program, load one of each of these shape
+        const shapes = { 'box': new Surface_Of_Revolution(3,20, [Vec.of(0,0,1),Vec.of(0,1,1),Vec.of(0,1,-1),Vec.of(0,0,-1)], [ [ 0, 1 ], [ 0,20 ] ]),//new Cube(),               // At the beginning of our program, load one of each of these shape
                         'ball': new Subdivision_Sphere(4)}      // design.  Once you've told the GPU what the design of a cube is,
         this.submit_shapes( context, shapes );            // it would be redundant to tell it again.  You should just re-use
                                                           // the one called "box" more than once in display() to draw
@@ -46,7 +46,7 @@ class FishingRod extends Entity
             this.casted = 0;
         }
     }
-    draw( graphics_state, material_override )
+    draw( graphics_state )
       {
           if(!this.fishing){
               return;
@@ -61,19 +61,19 @@ class FishingRod extends Entity
         const ANGLE_C = Math.PI/4;
         const FLICK_EXTENSION = 0.1;
         const STRAIGTEN_EXTENSION = 0.25;
-        const ROD_HEIGHT = 1.5;
+        const ROD_HEIGHT = 1.3;
         const NUM_SEG = 8;
         const MIN_LINE_LEN = 0.25;
-        const BUBBLE_SIZE = 0.03;
-        const ROD_CIRC = 0.01;
-        const REST_ANGLE = Math.asin(BUBBLE_SIZE/MIN_LINE_LEN);
+        const BUBBLE_SIZE = 0.04;
+        const ROD_CIRC = 0.015;
+        const REST_ANGLE = Math.asin(BUBBLE_SIZE/(MIN_LINE_LEN*2));
         const MAX_LINE_LEN = 10;
         const LINE_ANGLE = Math.PI/2+Math.asin(ROD_HEIGHT/MAX_LINE_LEN)-ANGLE_C-ANGLE_B;
         var time = this.time;// % 1200;
         //Position rod in fpv
         let model_transform = Mat4.inverse(graphics_state.camera_transform);
         model_transform = model_transform.times( Mat4.translation([ 0.5, -0.3, -1 ]) );
-        model_transform = model_transform.times( Mat4.rotation( -Math.PI/2.1, Vec.of( 0,1,0 ) ) );
+        model_transform = model_transform.times( Mat4.rotation( -Math.PI/2, Vec.of( 0,1,0 ) ) );//
 
         //Draw rod handle
         model_transform = model_transform.times( Mat4.translation([ 0, -ROD_HEIGHT/2, 0 ]) );
@@ -89,12 +89,13 @@ class FishingRod extends Entity
             model_transform = model_transform.times( Mat4.rotation(ANGLE_C, Vec.of( 0,0,1 ) ) );
         }
         model_transform = model_transform.times( Mat4.translation([ 0, ROD_HEIGHT/2, 0 ]) );
-        this.shapes.box.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC, ROD_HEIGHT/4, ROD_CIRC ])), this.get_material(this.plastic.override({ color: Color.of(0.6,0.4,0.2,1) }), material_override) );
+        this.shapes.box.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC, ROD_HEIGHT/4, ROD_CIRC ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.plastic.override({ color: Color.of(0.6,0.4,0.2,1) }) );
 
         //Draw rod top
         model_transform = model_transform.times( Mat4.translation([ 0, ROD_HEIGHT/4, 0 ]) );
+        model_transform = model_transform.times( Mat4.translation([ 0, ROD_HEIGHT/(4*NUM_SEG), 0 ]) );
         for(var i = 0; i < NUM_SEG; i++){
-            model_transform = model_transform.times( Mat4.translation([ 0, -ROD_HEIGHT/(2*NUM_SEG), 0 ]) );
+            model_transform = model_transform.times( Mat4.translation([ 0, -ROD_HEIGHT/(4*NUM_SEG), 0 ]) );
             if(time <= REST){
                 ;
             }else if(time < WIND_UP){
@@ -104,15 +105,15 @@ class FishingRod extends Entity
             }else if(time < STRAIGTEN){
                 model_transform = model_transform.times( Mat4.rotation(-ANGLE_B/NUM_SEG*(STRAIGTEN-time)/(STRAIGTEN-FLICK), Vec.of( 0,0,1 ) ) );
             }else{
-                model_transform = model_transform.times( Mat4.rotation(ANGLE_B/NUM_SEG*(time-STRAIGTEN)/(FALL), Vec.of( 0,0,1 ) ) );
+                model_transform = model_transform.times( Mat4.rotation(ANGLE_B/NUM_SEG*(time-STRAIGTEN)/(FALL-STRAIGTEN), Vec.of( 0,0,1 ) ) );
             }
-            model_transform = model_transform.times( Mat4.translation([ 0, ROD_HEIGHT/(2*NUM_SEG), 0 ]) );
-            this.shapes.box.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC, ROD_HEIGHT/(4*NUM_SEG), ROD_CIRC ])), this.get_material(this.plastic.override({ color: Color.of(0.6,0.4,0.2,1) }), material_override));
+            model_transform = model_transform.times( Mat4.translation([ 0, ROD_HEIGHT/(4*NUM_SEG), 0 ]) );
+            this.shapes.box.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC, ROD_HEIGHT/(4*NUM_SEG)+0.01, ROD_CIRC ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.plastic.override({ color: Color.of(0.6,0.4,0.2,1) }) );
             model_transform = model_transform.times( Mat4.translation([ 0, ROD_HEIGHT/(2*NUM_SEG), 0 ]) );
         }
 
         //Draw line
-        model_transform = model_transform.times( Mat4.translation([ 0, -ROD_HEIGHT/(2*NUM_SEG), 0 ]) );
+        model_transform = model_transform.times( Mat4.translation([ 0, -ROD_HEIGHT/(4*NUM_SEG), 0 ]) );
         var scale = MIN_LINE_LEN;
         if(time <= REST){
             model_transform = model_transform.times( Mat4.rotation(Math.PI+REST_ANGLE, Vec.of( 0,0,1 ) ) );
@@ -128,12 +129,12 @@ class FishingRod extends Entity
             scale += (MAX_LINE_LEN-MIN_LINE_LEN)*(STRAIGTEN_EXTENSION+(1-STRAIGTEN_EXTENSION)*(time-FLICK)/(FALL-FLICK));
         }
         model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
-          this.shapes.box.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC/4, scale, ROD_CIRC/4 ])), this.get_material(this.plastic.override({ color: Color.of(0,0,0.2,0.2) }), material_override) );
+        this.shapes.box.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC/4, scale, ROD_CIRC/4 ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.plastic.override({ color: Color.of(0,0,0.2,0.2) }) );
 
         // Draw Bubble
         model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
-          this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,0,0,1)}), material_override));
-        model_transform = model_transform.times( Mat4.translation([ 0, 0.001, 0 ]) );
-          this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,1,1,1)}), material_override) );
+        this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.plastic.override({ color: Color.of(1,0,0,1)}));
+        model_transform = model_transform.times( Mat4.translation([ 0, 0.01, 0 ]) );
+        this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.plastic.override({ color: Color.of(1,1,1,1)}) );
       }
   }
