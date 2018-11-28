@@ -386,12 +386,18 @@ class Shape extends Vertex_Buffer
 window.Graphics_State = window.tiny_graphics.Graphics_State =
 class Graphics_State                                            // Stores things that affect multiple shapes, such as lights and the camera.
 { constructor( camera_transform = Mat4.identity(), projection_transform = Mat4.identity() ) 
-    { Object.assign( this, { camera_transform, projection_transform, animation_time: 0, animation_delta_time: 0, lights: [] } ); }
+    { Object.assign( this, { camera_transform, projection_transform, animation_time: 0, animation_delta_time: 0, light: null } ); }
 }
 
 window.Light = window.tiny_graphics.Light =
 class Light                                                     // The properties of one light in the scene (Two 4x1 Vecs and a scalar)
-{ constructor( position, color, size ) { Object.assign( this, { position, color, attenuation: 1/size } ); }  };
+{ constructor( position, color, size ) {
+    Object.assign( this, { position, color, attenuation: 1/size } );
+    if (position[3] == 0.0) {
+	this.camera_transform = Mat4.look_at(this.position.to3(), Vec.of(0,0,0), Vec.of(0,1,0));
+	this.projection_transform = Mat4.orthographic( -800, 800, -500, 500, -500, 2000 );
+    }
+}  };
 
 window.Color = window.tiny_graphics.Color =
 class Color extends Vec { }    // Just an alias.  Colors are special 4x1 vectors expressed as ( red, green, blue, opacity ) each from 0 to 1.
@@ -629,7 +635,7 @@ class Scene_Component       // The Scene_Component superclass is the base class 
                                                     // Canvas_Manager has pointers to the shapes when needed.  It also loads each shape onto
     { if( !this.shapes ) this.shapes = {};          // the GPU if other scenes haven't done so already.  The shapes will be accessible from
       for( let s in shapes )                        // a scene by calling "this.ahapes".
-        { if( canvas_manager.shapes_in_use[s] )                 // If two scenes give any shape the same name as an existing one, the
+      { if( canvas_manager.shapes_in_use[s] )                 // If two scenes give any shape the same name as an existing one, the
             this.shapes[s] = canvas_manager.shapes_in_use[s];   // existing one is used instead and the new shape is thrown out.
           else this.shapes[s] = canvas_manager.shapes_in_use[s] = shapes[s];
           this.shapes[s].copy_onto_graphics_card( canvas_manager.gl );

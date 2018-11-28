@@ -1,5 +1,5 @@
 class Height_Map extends Entity {
-    constructor(context, image, width, depth, subdivisions, min_height, max_height) {
+    constructor(context, shadow_map, image, width, depth, subdivisions, min_height, max_height) {
 	super(context);
 	this.subdivisions = subdivisions;
 	this.width = width;
@@ -8,7 +8,7 @@ class Height_Map extends Entity {
 	this.max_height = max_height;
 
 	this.loaded = false;
-	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.5, specularity: 0, diffusivity: 0.3, texture: context.get_instance( "assets/terrain.jpg", true) } );
+	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.05, specularity: 0.0, diffusivity: 1.0, texture: context.get_instance( "assets/terrain.jpg", true), shadow_texture: shadow_map } );
 
 	var self = this;
 	var img = new Image();
@@ -39,9 +39,9 @@ class Height_Map extends Entity {
 	img.src = image;
     }
 
-    draw(graphics_state) {
+    draw(graphics_state, material_override) {
 	if (this.loaded)
-	    this.geometry.draw(graphics_state, Mat4.scale([this.width,1,this.depth]).times(Mat4.translation([-0.5,0,-0.5])), this.material);
+	    this.geometry.draw(graphics_state, Mat4.scale([this.width,1,this.depth]).times(Mat4.translation([-0.5,0,-0.5])), this.get_material(material_override));
     }
 
     sample_height(world_x, world_z) {
@@ -59,7 +59,7 @@ class Height_Map extends Entity {
 }
 
 class Player extends Entity {
-    constructor(context, control_box, height_map, initial_pos = Vec.of(150,0,1), initial_dir = Vec.of(0,0,1), run_speed = 6.705, look_speed = 0.2, height = 1.75) {
+    constructor(context, control_box, height_map, initial_pos = Vec.of(150,0,1), initial_dir = Vec.of(0,0,1), run_speed = 67.05, look_speed = 0.2, height = 1.75) {
 	super(context, control_box);
 
 	this.height_map = height_map;
@@ -131,7 +131,7 @@ class Player extends Entity {
 	graphics_state.camera_transform = Mat4.look_at(this.pos, this.pos.plus(this.dir), this.up);
     }
 
-    draw(graphics_state) {}
+    draw(graphics_state, material_override) { }
 }
 
 class Water extends Entity {
@@ -174,29 +174,66 @@ window.Final_Project = window.classes.Final_Project =
 class Final_Project extends Scene_Component
   { constructor( context, control_box )     // The scene begins by requesting the camera, shapes, and materials it will need.
     { super(   context, control_box );    // First, include a secondary Scene that provides movement controls:
-      var map = new Height_Map(context, "assets/heightmap.jpg", 1000, 1000, 128, -200, 300);
-      this.entities = [ map, this.player = new Player(context, control_box.parentElement.insertCell(), map), new Water(context, 1000, -110), new Sky_Box(context, 1000), new FishingRod(context, control_box.parentElement.insertCell()) ]
+      this.webgl_manager = context;
 
+      this.shadow_shader = context.get_instance(Shadow_Shader).material();
+      this.create_shadow_framebuffer(context.gl);
+
+      this.map = new Height_Map(context, this.shadow_map, "assets/heightmap.jpg", 1000, 1000, 128, -200, 300);
+      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map), new Water(context, 1000, -110), new Sky_Box(context, 1000), new FishingRod(context, control_box.parentElement.insertCell())]
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 1500 );
 
-      this.lights = [ new Light( Vec.of( 500,500,500,0 ), Color.of( 1,1,0.5,1 ), 10000000 ) ];
+      this.light = new Light( Vec.of( 500,500,-500,0 ), Color.of( 1,1,0.5,1 ), 10000 );
+    }
+    create_shadow_framebuffer(gl) {
+	this.shadow_map_size = 1024;
+
+	gl.getExtension("WEBGL_depth_texture");
+	this.shadow_map = new Texture(gl, "", false, false);
+	gl.bindTexture(gl.TEXTURE_2D, this.shadow_map.id);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, this.shadow_map_size, this.shadow_map_size, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+	gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST ); 
+	gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST );
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+	var light_texture = new Texture(gl, "", false, false);
+	gl.bindTexture(gl.TEXTURE_2D, light_texture.id);
+	gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, this.shadow_map_size, this.shadow_map_size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      
+	this.shadow_map_fb = gl.createFramebuffer();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadow_map_fb);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, light_texture.id, 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.shadow_map.id, 0);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
     make_control_panel()            // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
     {
 	this.key_triggered_button( "Unlock Mouse", [ "u" ], () => { document.exitPointerLock = document.exitPointerLock    || document.mozExitPointerLock;   document.exitPointerLock(); } );
+	this.result_img = this.control_panel.appendChild( Object.assign( document.createElement( "img" ), 
+									 { style:"width:"+this.shadow_map_size+"px; height:" +this.shadow_map_size +"px" } ) );
     }
     display( graphics_state )
     {
-	graphics_state.lights = this.lights;
+	graphics_state.light = this.light;
         const t = graphics_state.animation_time / 1000, dt = graphics_state.animation_delta_time / 1000;
 
 	for (var i = 0; i < this.entities.length; i++) {
 	    this.entities[i].update(graphics_state);
 	}
 
+	var gl = this.webgl_manager.gl;
+	gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadow_map_fb);
+	gl.viewport(0,0, this.shadow_map_size, this.shadow_map_size);
+	this.webgl_manager.gl.clear( this.webgl_manager.gl.DEPTH_BUFFER_BIT );
+	this.map.draw(graphics_state, this.shadow_shader);
+	
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 	for (var i = 0; i < this.entities.length; i++) {
 	    this.entities[i].draw(graphics_state);
 	}
+	
     }
   }

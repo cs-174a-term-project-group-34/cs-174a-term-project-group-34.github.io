@@ -150,6 +150,46 @@ class Subdivision_Sphere extends Shape  // This Shape defines a Sphere surface, 
 }
 
 
+window.Shadow_Shader = window.classes.Shadow_Shader =
+class Shadow_Shader extends Shader             // Subclasses of Shader each store and manage a complete GPU program.  This Shader is 
+{                                             // the simplest example of one.  It samples pixels from colors that are directly assigned 
+  material() { return { shader: this } }      // to the vertices.  Materials here are minimal, without any settings.
+  map_attribute_name_to_buffer_name( name )        // The shader will pull single entries out of the vertex arrays, by their data fields'
+    {                                              // names.  Map those names onto the arrays we'll pull them from.  This determines
+                                                   // which kinds of Shapes this Shader is compatible with.  Thanks to this function, 
+                                                   // Vertex buffers in the GPU can get their pointers matched up with pointers to 
+                                                   // attribute names in the GPU.  Shapes and Shaders can still be compatible even
+                                                   // if some vertex data feilds are unused. 
+      return { object_space_pos: "positions" }[ name ];      // Use a simple lookup table.
+    }
+    // Define how to synchronize our JavaScript's variables to the GPU's:
+  update_GPU( g_state, model_transform, material, gpu = this.g_addrs, gl = this.gl )
+    {
+	if( !g_state.light )  return;
+	var PCM = g_state.light.projection_transform.times(g_state.light.camera_transform).times(model_transform);
+	gl.uniformMatrix4fv( gpu.projection_camera_model_transform_loc, false, Mat.flatten_2D_to_1D(PCM.transposed()));
+    }
+  shared_glsl_code()            // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
+    { return `precision mediump float;
+      `;
+    }
+  vertex_glsl_code()           // ********* VERTEX SHADER *********
+    { return `
+        attribute vec3 object_space_pos;
+        uniform mat4 projection_camera_model_transform;
+
+        void main()
+        { gl_Position = projection_camera_model_transform * vec4(object_space_pos, 1.0);         }`;
+    }
+  fragment_glsl_code()           // ********* FRAGMENT SHADER *********
+    { return `
+        void main()
+        {
+        }`;
+    }
+}
+
+
 window.Skybox_Shader = window.classes.Skybox_Shader =
 class Skybox_Shader extends Shader          // THE DEFAULT SHADER: This uses the Phong Reflection Model, with optional Gouraud shading. 
                                            // Wikipedia has good defintions for these concepts.  Subclasses of class Shader each store 
@@ -197,26 +237,22 @@ class Skybox_Shader extends Shader          // THE DEFAULT SHADER: This uses the
 	return { object_space_pos: "positions", normal: "normals" }[ name ]; }   // Use a simple lookup table.
   shared_glsl_code()            // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
     { return `precision mediump float;
-        const int N_LIGHTS = 2;             // We're limited to only so many inputs in hardware.  Lights are costly (lots of sub-values).
-        uniform float ambient, diffusivity, specularity, smoothness, animation_time, attenuation_factor[N_LIGHTS];
-        uniform bool GOURAUD, COLOR_NORMALS, USE_CUBE_TEXTURE;               // Flags for alternate shading methods
-        uniform vec4 lightPosition[N_LIGHTS], lightColor[N_LIGHTS], shapeColor;
+        uniform float ambient, diffusivity, specularity, smoothness, animation_time, attenuation_factor;
+        uniform bool USE_CUBE_TEXTURE;               // Flags for alternate shading methods
+        uniform vec4 lightPosition, lightColor, shapeColor;
         varying vec3 N, E;                    // Specifier "varying" means a variable's final value will be passed from the vertex shader 
         varying vec3 cube_map_coord;
         varying vec4 VERTEX_COLOR;            // pixel fragment's proximity to each of the 3 vertices (barycentric interpolation).
-        varying vec3 L[N_LIGHTS], H[N_LIGHTS];
-        varying float dist[N_LIGHTS];
+        varying vec3 L, H;
+        varying float dist;
         
         vec3 phong_model_lights( vec3 N )
           { vec3 result = vec3(0.0);
-            for(int i = 0; i < N_LIGHTS; i++)
-              {
-                float attenuation_multiplier = 1.0 / (1.0 + attenuation_factor[i] * (dist[i] * dist[i]));
-                float diffuse  =      max( dot(N, L[i]), 0.0 );
-                float specular = pow( max( dot(N, H[i]), 0.0 ), smoothness );
+            float attenuation_multiplier = 1.0 / (1.0 + attenuation_factor * (dist * dist));
+            float diffuse  =      max( dot(N, L), 0.0 );
+            float specular = pow( max( dot(N, H), 0.0 ), smoothness );
 
-                result += attenuation_multiplier * ( shapeColor.xyz * diffusivity * diffuse + lightColor[i].xyz * specularity * specular );
-              }
+            result += attenuation_multiplier * ( shapeColor.xyz * diffusivity * diffuse + lightColor.xyz * specularity * specular );
             return result;
           }
         `;
@@ -233,32 +269,15 @@ class Skybox_Shader extends Shader          // THE DEFAULT SHADER: This uses the
           gl_Position = projection_camera_model_transform * vec4(object_space_pos, 1.0);     // The vertex's final resting place (in NDCS).
           N = normalize( inverse_transpose_modelview * normal );                             // The final normal vector in screen space.
           
-          if( COLOR_NORMALS )                                     // Bypass all lighting code if we're lighting up vertices some other way.
-          { VERTEX_COLOR = vec4( N[0] > 0.0 ? N[0] : sin( animation_time * 3.0   ) * -N[0],             // In "normals" mode, 
-                                 N[1] > 0.0 ? N[1] : sin( animation_time * 15.0  ) * -N[1],             // rgb color = xyz quantity.
-                                 N[2] > 0.0 ? N[2] : sin( animation_time * 45.0  ) * -N[2] , 1.0 );     // Flash if it's negative.
-            return;
-          }
-                                                  // The rest of this shader calculates some quantities that the Fragment shader will need:
           vec3 screen_space_pos = ( camera_model_transform * vec4(object_space_pos, 1.0) ).xyz;
           E = normalize( -screen_space_pos );
 
-          for( int i = 0; i < N_LIGHTS; i++ )
-          {            // Light positions use homogeneous coords.  Use w = 0 for a directional light source -- a vector instead of a point.
-            L[i] = normalize( ( camera_transform * lightPosition[i] ).xyz - lightPosition[i].w * screen_space_pos );
-            H[i] = normalize( L[i] + E );
+          L = normalize( ( camera_transform * lightPosition ).xyz - lightPosition.w * screen_space_pos );
+          H = normalize( L + E );
             
-            // Is it a point light source?  Calculate the distance to it from the object.  Otherwise use some arbitrary distance.
-            dist[i]  = lightPosition[i].w > 0.0 ? distance((camera_transform * lightPosition[i]).xyz, screen_space_pos)
-                                                : distance( attenuation_factor[i] * -lightPosition[i].xyz, object_space_pos.xyz );
-          }
-
-          if( GOURAUD )                   // Gouraud shading mode?  If so, finalize the whole color calculation here in the vertex shader, 
-          {                               // one per vertex, before we even break it down to pixels in the fragment shader.   As opposed 
-                                          // to Smooth "Phong" Shading, where we *do* wait to calculate final color until the next shader.
-            VERTEX_COLOR      = vec4( shapeColor.xyz * ambient, shapeColor.w);
-            VERTEX_COLOR.xyz += phong_model_lights( N );
-          }
+          // Is it a point light source?  Calculate the distance to it from the object.  Otherwise use some arbitrary distance.
+          dist  = lightPosition.w > 0.0 ? distance((camera_transform * lightPosition).xyz, screen_space_pos)
+                                              : distance( attenuation_factor * -lightPosition.xyz, object_space_pos.xyz );
         }`;
     }
   fragment_glsl_code()           // ********* FRAGMENT SHADER ********* 
@@ -267,11 +286,7 @@ class Skybox_Shader extends Shader          // THE DEFAULT SHADER: This uses the
       return `
         uniform samplerCube cube_texture;
         void main()
-        { if( GOURAUD || COLOR_NORMALS )    // Do smooth "Phong" shading unless options like "Gouraud mode" are wanted instead.
-          { gl_FragColor = VERTEX_COLOR;    // Otherwise, we already have final colors to smear (interpolate) across vertices.            
-            return;
-          }                                 // If we get this far, calculate Smooth "Phong" Shading as opposed to Gouraud Shading.
-                                            // Phong shading is not to be confused with the Phong Reflection Model.
+        { 
           vec4 cube_tex_color = textureCube( cube_texture, cube_map_coord );
           if( USE_CUBE_TEXTURE ) gl_FragColor = vec4( ( cube_tex_color.xyz + shapeColor.xyz ) * ambient, shapeColor.w * cube_tex_color.w );
           else gl_FragColor = vec4( shapeColor.xyz * ambient, shapeColor.w );
@@ -283,10 +298,6 @@ class Skybox_Shader extends Shader          // THE DEFAULT SHADER: This uses the
     {                              // First, send the matrices to the GPU, additionally cache-ing some products of them we know we'll need:
       this.update_matrices( g_state, model_transform, gpu, gl );
       gl.uniform1f ( gpu.animation_time_loc, g_state.animation_time / 1000 );
-
-      if( g_state.gouraud === undefined ) { g_state.gouraud = g_state.color_normals = false; }    // Keep the flags seen by the shader 
-      gl.uniform1i( gpu.GOURAUD_loc,        g_state.gouraud || material.gouraud );                // program up-to-date and make sure 
-      gl.uniform1i( gpu.COLOR_NORMALS_loc,  g_state.color_normals );                              // they are declared.
 
       gl.uniform4fv( gpu.shapeColor_loc,     material.color       );    // Send the desired shape-wide material qualities 
       gl.uniform1f ( gpu.ambient_loc,        material.ambient     );    // to the graphics card, where they will tweak the
@@ -302,23 +313,17 @@ class Skybox_Shader extends Shader          // THE DEFAULT SHADER: This uses the
       }
       else  { gl.uniform1f ( gpu.USE_CUBE_TEXTURE_loc, 0 );   gpu.shader_attributes["tex_coord"].enabled = false; }
 
-      if( !g_state.lights.length )  return;
-      var lightPositions_flattened = [], lightColors_flattened = [], lightAttenuations_flattened = [];
-      for( var i = 0; i < 4 * g_state.lights.length; i++ )
-        { lightPositions_flattened                  .push( g_state.lights[ Math.floor(i/4) ].position[i%4] );
-          lightColors_flattened                     .push( g_state.lights[ Math.floor(i/4) ].color[i%4] );
-          lightAttenuations_flattened[ Math.floor(i/4) ] = g_state.lights[ Math.floor(i/4) ].attenuation;
-        }
-      gl.uniform4fv( gpu.lightPosition_loc,       lightPositions_flattened );
-      gl.uniform4fv( gpu.lightColor_loc,          lightColors_flattened );
-      gl.uniform1fv( gpu.attenuation_factor_loc,  lightAttenuations_flattened );
+	if( !g_state.light )  return;
+	gl.uniform4fv( gpu.lightPosition_loc,       g_state.light.position );
+	gl.uniform4fv( gpu.lightColor_loc,          g_state.light.color );
+	gl.uniform1f( gpu.attenuation_factor_loc,  g_state.light.attenuation );
     }
   update_matrices( g_state, model_transform, gpu, gl )                                    // Helper function for sending matrices to GPU.
-    {                                                   // (PCM will mean Projection * Camera * Model)
+  {                                                   // (PCM will mean Projection * Camera * Model)
       let [ P, C, M ]    = [ g_state.projection_transform, g_state.camera_transform, model_transform ],
-            CM     =      C.times(  M ),
-            PCM    =      P.times( CM ),
-            inv_CM = Mat4.inverse( CM ).sub_block([0,0], [3,3]);
+          CM     =      C.times(  M ),
+          PCM    =      P.times( CM ),
+          inv_CM = Mat4.inverse( CM ).sub_block([0,0], [3,3]);
                                                                   // Send the current matrices to the shader.  Go ahead and pre-compute
                                                                   // the products we'll need of the of the three special matrices and just
                                                                   // cache and send those.  They will be the same throughout this draw
@@ -328,7 +333,7 @@ class Skybox_Shader extends Shader          // THE DEFAULT SHADER: This uses the
       gl.uniformMatrix4fv( gpu.camera_model_transform_loc,            false, Mat.flatten_2D_to_1D(     CM.transposed() ) );
       gl.uniformMatrix4fv( gpu.projection_camera_model_transform_loc, false, Mat.flatten_2D_to_1D(    PCM.transposed() ) );
       gl.uniformMatrix3fv( gpu.inverse_transpose_modelview_loc,       false, Mat.flatten_2D_to_1D( inv_CM              ) );       
-    }
+  }
 }
 
 
@@ -379,28 +384,15 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
 	return { object_space_pos: "positions", normal: "normals", tex_coord: "texture_coords" }[ name ]; }   // Use a simple lookup table.
   shared_glsl_code()            // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
     { return `precision mediump float;
-        const int N_LIGHTS = 2;             // We're limited to only so many inputs in hardware.  Lights are costly (lots of sub-values).
-        uniform float ambient, diffusivity, specularity, smoothness, animation_time, attenuation_factor[N_LIGHTS];
-        uniform bool GOURAUD, COLOR_NORMALS, USE_TEXTURE;               // Flags for alternate shading methods
-        uniform vec4 lightPosition[N_LIGHTS], lightColor[N_LIGHTS], shapeColor;
+        uniform float ambient, diffusivity, specularity, smoothness, animation_time, attenuation_factor;
+        uniform bool USE_TEXTURE, USE_SHADOW_TEXTURE;               // Flags for alternate shading methods
+        uniform vec4 lightPosition, lightColor, shapeColor;
         varying vec3 N, E;                    // Specifier "varying" means a variable's final value will be passed from the vertex shader 
         varying vec2 f_tex_coord;             // on to the next phase (fragment shader), then interpolated per-fragment, weighted by the 
         varying vec4 VERTEX_COLOR;            // pixel fragment's proximity to each of the 3 vertices (barycentric interpolation).
-        varying vec3 L[N_LIGHTS], H[N_LIGHTS];
-        varying float dist[N_LIGHTS];
-        
-        vec3 phong_model_lights( vec3 N )
-          { vec3 result = vec3(0.0);
-            for(int i = 0; i < N_LIGHTS; i++)
-              {
-                float attenuation_multiplier = 1.0 / (1.0 + attenuation_factor[i] * (dist[i] * dist[i]));
-                float diffuse  =      max( dot(N, L[i]), 0.0 );
-                float specular = pow( max( dot(N, H[i]), 0.0 ), smoothness );
-
-                result += attenuation_multiplier * ( shapeColor.xyz * diffusivity * diffuse + lightColor[i].xyz * specularity * specular );
-              }
-            return result;
-          }
+        varying vec4 shadow_coord;
+        varying vec3 L, H;
+        varying float dist;        
         `;
     }
   vertex_glsl_code()           // ********* VERTEX SHADER *********
@@ -408,40 +400,24 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
         attribute vec3 object_space_pos, normal;
         attribute vec2 tex_coord;
 
-        uniform mat4 camera_transform, camera_model_transform, projection_camera_model_transform;
+        uniform mat4 model_transform, camera_transform, camera_model_transform, projection_camera_model_transform, light_projection_camera_transform;
         uniform mat3 inverse_transpose_modelview;
 
         void main()
         { gl_Position = projection_camera_model_transform * vec4(object_space_pos, 1.0);     // The vertex's final resting place (in NDCS).
+          shadow_coord = light_projection_camera_transform * model_transform * vec4(object_space_pos, 1.0);
           N = normalize( inverse_transpose_modelview * normal );                             // The final normal vector in screen space.
           f_tex_coord = tex_coord;                                         // Directly use original texture coords and interpolate between.
           
-          if( COLOR_NORMALS )                                     // Bypass all lighting code if we're lighting up vertices some other way.
-          { VERTEX_COLOR = vec4( N[0] > 0.0 ? N[0] : sin( animation_time * 3.0   ) * -N[0],             // In "normals" mode, 
-                                 N[1] > 0.0 ? N[1] : sin( animation_time * 15.0  ) * -N[1],             // rgb color = xyz quantity.
-                                 N[2] > 0.0 ? N[2] : sin( animation_time * 45.0  ) * -N[2] , 1.0 );     // Flash if it's negative.
-            return;
-          }
-                                                  // The rest of this shader calculates some quantities that the Fragment shader will need:
           vec3 screen_space_pos = ( camera_model_transform * vec4(object_space_pos, 1.0) ).xyz;
           E = normalize( -screen_space_pos );
 
-          for( int i = 0; i < N_LIGHTS; i++ )
-          {            // Light positions use homogeneous coords.  Use w = 0 for a directional light source -- a vector instead of a point.
-            L[i] = normalize( ( camera_transform * lightPosition[i] ).xyz - lightPosition[i].w * screen_space_pos );
-            H[i] = normalize( L[i] + E );
+          L = normalize( ( camera_transform * lightPosition ).xyz - lightPosition.w * screen_space_pos );
+          H = normalize( L + E );
             
-            // Is it a point light source?  Calculate the distance to it from the object.  Otherwise use some arbitrary distance.
-            dist[i]  = lightPosition[i].w > 0.0 ? distance((camera_transform * lightPosition[i]).xyz, screen_space_pos)
-                                                : distance( attenuation_factor[i] * -lightPosition[i].xyz, object_space_pos.xyz );
-          }
-
-          if( GOURAUD )                   // Gouraud shading mode?  If so, finalize the whole color calculation here in the vertex shader, 
-          {                               // one per vertex, before we even break it down to pixels in the fragment shader.   As opposed 
-                                          // to Smooth "Phong" Shading, where we *do* wait to calculate final color until the next shader.
-            VERTEX_COLOR      = vec4( shapeColor.xyz * ambient, shapeColor.w);
-            VERTEX_COLOR.xyz += phong_model_lights( N );
-          }
+          // Is it a point light source?  Calculate the distance to it from the object.  Otherwise use some arbitrary distance.
+          dist = lightPosition.w > 0.0 ? distance((camera_transform * lightPosition).xyz, screen_space_pos)
+                                              : distance( attenuation_factor * -lightPosition.xyz, object_space_pos.xyz );
         }`;
     }
   fragment_glsl_code()           // ********* FRAGMENT SHADER ********* 
@@ -449,18 +425,33 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
                                  // Fragments affect the final image or get discarded due to depth.
       return `
         uniform sampler2D texture;
+        uniform sampler2D shadow_texture;
+        vec4 color;
+
+        vec3 phong_model_lights( vec3 N )
+          { vec3 result = vec3(0.0);
+            float visibility = 1.0;
+            float bias = 0.005*tan(acos(dot(N,L)));
+            bias = bias < 0.0 ? 0.0 : ( bias > 0.01 ? 0.01 : bias );
+            if ( texture2D( shadow_texture, shadow_coord.xy ).z  <  shadow_coord.z-bias ){
+                        visibility = 0.5;
+            }
+            float attenuation_multiplier = 1.0; /// (1.0 + attenuation_factor * (dist * dist));
+            float diffuse  =      max( dot(N, L), 0.0 );
+            float specular = pow( max( dot(N, H), 0.0 ), smoothness );
+
+            result += attenuation_multiplier * ( color.xyz * diffusivity * diffuse + lightColor.xyz * specularity * specular );
+            return visibility*result;
+          }
+
         void main()
-        { if( GOURAUD || COLOR_NORMALS )    // Do smooth "Phong" shading unless options like "Gouraud mode" are wanted instead.
-          { gl_FragColor = VERTEX_COLOR;    // Otherwise, we already have final colors to smear (interpolate) across vertices.            
-            return;
-          }                                 // If we get this far, calculate Smooth "Phong" Shading as opposed to Gouraud Shading.
-                                            // Phong shading is not to be confused with the Phong Reflection Model.
+        { 
+          vec4 tex_color = texture2D(texture, f_tex_coord);
+          color = shapeColor;
 
-          vec4 tex_color = texture2D( texture, f_tex_coord );                         // Sample the texture image in the correct place.
-                                                                                      // Compute an initial (ambient) color:
+          if( USE_TEXTURE ) color = vec4(tex_color.xyz + color.xyz, tex_color.w * color.w);
+          gl_FragColor = vec4( color.xyz * ambient, color.w );
 
-          if( USE_TEXTURE ) gl_FragColor = vec4( ( tex_color.xyz + shapeColor.xyz ) * ambient, shapeColor.w * tex_color.w );
-          else gl_FragColor = vec4( shapeColor.xyz * ambient, shapeColor.w );
           gl_FragColor.xyz += phong_model_lights( N );                     // Compute the final color with contributions from lights.
         }`;
     }
@@ -470,16 +461,13 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
       this.update_matrices( g_state, model_transform, gpu, gl );
       gl.uniform1f ( gpu.animation_time_loc, g_state.animation_time / 1000 );
 
-      if( g_state.gouraud === undefined ) { g_state.gouraud = g_state.color_normals = false; }    // Keep the flags seen by the shader 
-      gl.uniform1i( gpu.GOURAUD_loc,        g_state.gouraud || material.gouraud );                // program up-to-date and make sure 
-      gl.uniform1i( gpu.COLOR_NORMALS_loc,  g_state.color_normals );                              // they are declared.
-
       gl.uniform4fv( gpu.shapeColor_loc,     material.color       );    // Send the desired shape-wide material qualities 
       gl.uniform1f ( gpu.ambient_loc,        material.ambient     );    // to the graphics card, where they will tweak the
       gl.uniform1f ( gpu.diffusivity_loc,    material.diffusivity );    // Phong lighting formula.
       gl.uniform1f ( gpu.specularity_loc,    material.specularity );
 	gl.uniform1f ( gpu.smoothness_loc,     material.smoothness  );
 	gl.uniform1i(gpu.texture_loc, 0);
+	gl.uniform1i(gpu.shadow_texture_loc, 1);
 
       if( material.texture )                           // NOTE: To signal not to draw a texture, omit the texture parameter from Materials.
       { gpu.shader_attributes["tex_coord"].enabled = true;
@@ -489,20 +477,29 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
       }
 	else  { gl.uniform1f ( gpu.USE_TEXTURE_loc, 0 ); gpu.shader_attributes["tex_coord"].enabled = false; }
 
-      if( !g_state.lights.length )  return;
-      var lightPositions_flattened = [], lightColors_flattened = [], lightAttenuations_flattened = [];
-      for( var i = 0; i < 4 * g_state.lights.length; i++ )
-        { lightPositions_flattened                  .push( g_state.lights[ Math.floor(i/4) ].position[i%4] );
-          lightColors_flattened                     .push( g_state.lights[ Math.floor(i/4) ].color[i%4] );
-          lightAttenuations_flattened[ Math.floor(i/4) ] = g_state.lights[ Math.floor(i/4) ].attenuation;
-        }
-      gl.uniform4fv( gpu.lightPosition_loc,       lightPositions_flattened );
-      gl.uniform4fv( gpu.lightColor_loc,          lightColors_flattened );
-      gl.uniform1fv( gpu.attenuation_factor_loc,  lightAttenuations_flattened );
+	if( material.shadow_texture )
+	{
+	    gl.uniform1f(gpu.USE_SHADOW_TEXTURE_loc, 1);
+	    gl.activeTexture(gl.TEXTURE1);
+	    gl.bindTexture(gl.TEXTURE_2D, material.shadow_texture.id);
+	} else {
+	    gl.uniform1f(gpu.USE_SHADOW_TEXTURE_loc, 0);
+	}
+
+	if( !g_state.light )  return;
+	gl.uniform4fv( gpu.lightPosition_loc,       g_state.light.position );
+	gl.uniform4fv( gpu.lightColor_loc,          g_state.light.color );
+	gl.uniform1f( gpu.attenuation_factor_loc,  g_state.light.attenuation );
+	var depth_bias = new Mat([0.5,0.0,0.0,0.5],
+				 [0.0,0.5,0.0,0.5],
+				 [0.0,0.0,0.5,0.5],
+				 [0.0,0.0,0.0,1.0]);
+	var depth_bias_PC = depth_bias.times(g_state.light.projection_transform).times(g_state.light.camera_transform);
+	gl.uniformMatrix4fv( gpu.light_projection_camera_transform_loc, false, Mat.flatten_2D_to_1D(depth_bias_PC.transposed()));
     }
   update_matrices( g_state, model_transform, gpu, gl )                                    // Helper function for sending matrices to GPU.
     {                                                   // (PCM will mean Projection * Camera * Model)
-      let [ P, C, M ]    = [ g_state.projection_transform, g_state.camera_transform, model_transform ],
+	let [ P, C, M ]    = [ g_state.projection_transform, g_state.camera_transform, model_transform ],
             CM     =      C.times(  M ),
             PCM    =      P.times( CM ),
             inv_CM = Mat4.inverse( CM ).sub_block([0,0], [3,3]);
@@ -510,14 +507,15 @@ class Phong_Shader extends Shader          // THE DEFAULT SHADER: This uses the 
                                                                   // the products we'll need of the of the three special matrices and just
                                                                   // cache and send those.  They will be the same throughout this draw
                                                                   // call, and thus across each instance of the vertex shader.
-                                                                  // Transpose them since the GPU expects matrices as column-major arrays.                                  
-      gl.uniformMatrix4fv( gpu.camera_transform_loc,                  false, Mat.flatten_2D_to_1D(     C .transposed() ) );
-      gl.uniformMatrix4fv( gpu.camera_model_transform_loc,            false, Mat.flatten_2D_to_1D(     CM.transposed() ) );
-      gl.uniformMatrix4fv( gpu.projection_camera_model_transform_loc, false, Mat.flatten_2D_to_1D(    PCM.transposed() ) );
-      gl.uniformMatrix3fv( gpu.inverse_transpose_modelview_loc,       false, Mat.flatten_2D_to_1D( inv_CM              ) );       
+        // Transpose them since the GPU expects matrices as column-major arrays.
+	gl.uniformMatrix4fv( gpu.model_transform_loc,                   false, Mat.flatten_2D_to_1D(     M .transposed() ) );	    
+	gl.uniformMatrix4fv( gpu.camera_transform_loc,                  false, Mat.flatten_2D_to_1D(     C .transposed() ) );
+	gl.uniformMatrix4fv( gpu.camera_model_transform_loc,            false, Mat.flatten_2D_to_1D(     CM.transposed() ) );
+	gl.uniformMatrix4fv( gpu.projection_camera_model_transform_loc, false, Mat.flatten_2D_to_1D(    PCM.transposed() ) );
+	gl.uniformMatrix3fv( gpu.inverse_transpose_modelview_loc,       false, Mat.flatten_2D_to_1D( inv_CM              ) );
     }
 }
-
+  
 window.Water_Shader = window.classes.Water_Shader =
 class Water_Shader extends Phong_Shader
 {
@@ -527,27 +525,23 @@ class Water_Shader extends Phong_Shader
 
   shared_glsl_code()            // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
     { return `precision mediump float;
-        const int N_LIGHTS = 2;             // We're limited to only so many inputs in hardware.  Lights are costly (lots of sub-values).
         uniform mat4 inverse_camera_transform;
-        uniform float ambient, diffusivity, specularity, smoothness, animation_time, attenuation_factor[N_LIGHTS], reflectivity;
-        uniform bool GOURAUD, COLOR_NORMALS, USE_TEXTURE, USE_ENVMAP;               // Flags for alternate shading methods
-        uniform vec4 lightPosition[N_LIGHTS], lightColor[N_LIGHTS], shapeColor;
+        uniform float ambient, diffusivity, specularity, smoothness, animation_time, attenuation_factor, reflectivity;
+        uniform bool USE_TEXTURE, USE_ENVMAP;               // Flags for alternate shading methods
+        uniform vec4 lightPosition, lightColor, shapeColor;
         varying vec3 N, E;                    // Specifier "varying" means a variable's final value will be passed from the vertex shader 
         varying vec2 f_tex_coord;             // on to the next phase (fragment shader), then interpolated per-fragment, weighted by the 
         varying vec4 VERTEX_COLOR;            // pixel fragment's proximity to each of the 3 vertices (barycentric interpolation).
-        varying vec3 L[N_LIGHTS], H[N_LIGHTS];
-        varying float dist[N_LIGHTS];
+        varying vec3 L, H;
+        varying float dist;
         
         vec3 phong_model_lights( vec3 N )
           { vec3 result = vec3(0.0);
-            for(int i = 0; i < N_LIGHTS; i++)
-              {
-                float attenuation_multiplier = 1.0 / (1.0 + attenuation_factor[i] * (dist[i] * dist[i]));
-                float diffuse  =      max( dot(N, L[i]), 0.0 );
-                float specular = pow( max( dot(N, H[i]), 0.0 ), smoothness );
+                float attenuation_multiplier = 1.0 / (1.0 + attenuation_factor * (dist * dist));
+                float diffuse  =      max( dot(N, L), 0.0 );
+                float specular = pow( max( dot(N, H), 0.0 ), smoothness );
 
-                result += attenuation_multiplier * ( shapeColor.xyz * diffusivity * diffuse + lightColor[i].xyz * specularity * specular );
-              }
+                result += attenuation_multiplier * ( shapeColor.xyz * diffusivity * diffuse + lightColor.xyz * specularity * specular );
             return result;
           }
         `;
@@ -566,32 +560,15 @@ class Water_Shader extends Phong_Shader
           f_tex_coord = tex_coord;                                         // Directly use original texture coords and interpolate between.
           
           
-          if( COLOR_NORMALS )                                     // Bypass all lighting code if we're lighting up vertices some other way.
-          { VERTEX_COLOR = vec4( N[0] > 0.0 ? N[0] : sin( animation_time * 3.0   ) * -N[0],             // In "normals" mode, 
-                                 N[1] > 0.0 ? N[1] : sin( animation_time * 15.0  ) * -N[1],             // rgb color = xyz quantity.
-                                 N[2] > 0.0 ? N[2] : sin( animation_time * 45.0  ) * -N[2] , 1.0 );     // Flash if it's negative.
-            return;
-          }
-                                                  // The rest of this shader calculates some quantities that the Fragment shader will need:
           vec3 screen_space_pos = ( camera_model_transform * vec4(object_space_pos, 1.0) ).xyz;
           E = normalize( -screen_space_pos );
 
-          for( int i = 0; i < N_LIGHTS; i++ )
-          {            // Light positions use homogeneous coords.  Use w = 0 for a directional light source -- a vector instead of a point.
-            L[i] = normalize( ( camera_transform * lightPosition[i] ).xyz - lightPosition[i].w * screen_space_pos );
-            H[i] = normalize( L[i] + E );
+            L = normalize( ( camera_transform * lightPosition ).xyz - lightPosition.w * screen_space_pos );
+            H = normalize( L + E );
             
             // Is it a point light source?  Calculate the distance to it from the object.  Otherwise use some arbitrary distance.
-            dist[i]  = lightPosition[i].w > 0.0 ? distance((camera_transform * lightPosition[i]).xyz, screen_space_pos)
-                                                : distance( attenuation_factor[i] * -lightPosition[i].xyz, object_space_pos.xyz );
-          }
-
-          if( GOURAUD )                   // Gouraud shading mode?  If so, finalize the whole color calculation here in the vertex shader, 
-          {                               // one per vertex, before we even break it down to pixels in the fragment shader.   As opposed 
-                                          // to Smooth "Phong" Shading, where we *do* wait to calculate final color until the next shader.
-            VERTEX_COLOR      = vec4( shapeColor.xyz * ambient, shapeColor.w);
-            VERTEX_COLOR.xyz += phong_model_lights( N );
-          }
+            dist  = lightPosition.w > 0.0 ? distance((camera_transform * lightPosition).xyz, screen_space_pos)
+                                                : distance( attenuation_factor * -lightPosition.xyz, object_space_pos.xyz );
         }`;
     }
   fragment_glsl_code()           // ********* FRAGMENT SHADER ********* 
@@ -601,11 +578,7 @@ class Water_Shader extends Phong_Shader
         uniform sampler2D texture;
         uniform samplerCube envmap;
         void main()
-        { if( GOURAUD || COLOR_NORMALS )    // Do smooth "Phong" shading unless options like "Gouraud mode" are wanted instead.
-          { gl_FragColor = VERTEX_COLOR;    // Otherwise, we already have final colors to smear (interpolate) across vertices.            
-            return;
-          }                                 // If we get this far, calculate Smooth "Phong" Shading as opposed to Gouraud Shading.
-                                            // Phong shading is not to be confused with the Phong Reflection Model.
+        { 
           vec4 tex_color = texture2D( texture, f_tex_coord );                         // Sample the texture image in the correct place.
           vec3 reflected = reflect(-E, N);
           reflected = vec3(inverse_camera_transform * vec4(reflected, 0.0));
@@ -624,10 +597,6 @@ class Water_Shader extends Phong_Shader
     {                              // First, send the matrices to the GPU, additionally cache-ing some products of them we know we'll need:
       this.update_matrices( g_state, model_transform, gpu, gl );
       gl.uniform1f ( gpu.animation_time_loc, g_state.animation_time / 1000 );
-
-      if( g_state.gouraud === undefined ) { g_state.gouraud = g_state.color_normals = false; }    // Keep the flags seen by the shader 
-      gl.uniform1i( gpu.GOURAUD_loc,        g_state.gouraud || material.gouraud );                // program up-to-date and make sure 
-      gl.uniform1i( gpu.COLOR_NORMALS_loc,  g_state.color_normals );                              // they are declared.
 
       gl.uniform4fv( gpu.shapeColor_loc,     material.color       );    // Send the desired shape-wide material qualities 
       gl.uniform1f ( gpu.ambient_loc,        material.ambient     );    // to the graphics card, where they will tweak the
@@ -655,16 +624,10 @@ class Water_Shader extends Phong_Shader
         gl.uniform1f(gpu.USE_ENVMAP_loc, 0);
       }
 
-      if( !g_state.lights.length )  return;
-      var lightPositions_flattened = [], lightColors_flattened = [], lightAttenuations_flattened = [];
-      for( var i = 0; i < 4 * g_state.lights.length; i++ )
-        { lightPositions_flattened                  .push( g_state.lights[ Math.floor(i/4) ].position[i%4] );
-          lightColors_flattened                     .push( g_state.lights[ Math.floor(i/4) ].color[i%4] );
-          lightAttenuations_flattened[ Math.floor(i/4) ] = g_state.lights[ Math.floor(i/4) ].attenuation;
-        }
-      gl.uniform4fv( gpu.lightPosition_loc,       lightPositions_flattened );
-      gl.uniform4fv( gpu.lightColor_loc,          lightColors_flattened );
-      gl.uniform1fv( gpu.attenuation_factor_loc,  lightAttenuations_flattened );
+	if( !g_state.light )  return;
+	gl.uniform4fv( gpu.lightPosition_loc,       g_state.light.position );
+	gl.uniform4fv( gpu.lightColor_loc,          g_state.light.color );
+	gl.uniform1f( gpu.attenuation_factor_loc,  g_state.light.attenuation );
     }
 
     update_matrices( g_state, model_transform, gpu, gl )                                    // Helper function for sending matrices to GPU.
