@@ -391,11 +391,33 @@ class Graphics_State                                            // Stores things
 
 window.Light = window.tiny_graphics.Light =
 class Light                                                     // The properties of one light in the scene (Two 4x1 Vecs and a scalar)
-{ constructor( position, color, size ) {
+{ constructor( position, color, size, world_bot, world_top ) {
     Object.assign( this, { position, color, attenuation: 1/size } );
     if (position[3] == 0.0) {
 	this.camera_transform = Mat4.look_at(this.position.to3(), Vec.of(0,0,0), Vec.of(0,1,0));
-	this.projection_transform = Mat4.orthographic( -800, 800, -500, 500, -500, 2000 );
+	var frustrum_points = [];
+	const choose_vec = (i) => i == 0 ? world_bot : world_top;
+	for (var x = 0; x < 2; x++) {
+	    for (var y = 0; y < 2; y++) {
+		for (var z = 0; z < 2; z++) {
+		    frustrum_points.push(Vec.of(choose_vec(x)[0], choose_vec(y)[1], choose_vec(z)[2]));
+		}
+	    }
+	}
+	for ( var i = 0; i < frustrum_points.length; i++ ) {
+	    frustrum_points[i] = Mat4.inverse(this.camera_transform).times(frustrum_points[i].to4(true)).to3()
+	}
+	var bounding_top = frustrum_points[0].copy();
+	var bounding_bot = frustrum_points[0].copy();
+	for ( var i = 0; i < frustrum_points.length; i++ ) {
+	    for ( var j = 0; j < 3; j++ ) {
+		bounding_top[j] = Math.min(bounding_top[j], frustrum_points[i][j]);
+		bounding_bot[j] = Math.max(bounding_bot[j], frustrum_points[i][j]);
+	    }
+	}
+	bounding_top = bounding_top.times(-1);
+	bounding_bot = bounding_bot.times(-1);
+	this.projection_transform = Mat4.orthographic( bounding_bot[0], bounding_top[0], bounding_bot[1], bounding_top[1], bounding_bot[2], bounding_top[2]);
     }
 }  };
 

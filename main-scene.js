@@ -185,7 +185,7 @@ class Final_Project extends Scene_Component
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 1500 );
 
-      this.light = new Light( Vec.of( 500,500,-500,0 ), Color.of( 1,1,0.5,1 ), 10000 );
+      this.light = new Light( Vec.of( 500,500,-500,0 ), Color.of( 1,1,0.5,1 ), 10000, Vec.of(-500, -500, -500), Vec.of(500, 500, 500));
     }
     create_shadow_framebuffer(gl) {
 	this.shadow_map_size = 2048;
