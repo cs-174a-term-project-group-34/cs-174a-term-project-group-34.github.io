@@ -199,12 +199,13 @@ class Final_Project extends Scene_Component
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
 	var light_texture = new Texture(gl, "", false, false);
-	gl.bindTexture(gl.TEXTURE_2D, light_texture.id);
-	gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, this.shadow_map_size, this.shadow_map_size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+	var color_buffer = gl.createRenderbuffer();
+	gl.bindRenderbuffer(gl.RENDERBUFFER, color_buffer);
+	gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA4, this.shadow_map_size, this.shadow_map_size);
       
 	this.shadow_map_fb = gl.createFramebuffer();
 	gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadow_map_fb);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, light_texture.id, 0);
+	gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color_buffer);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.shadow_map.id, 0);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
