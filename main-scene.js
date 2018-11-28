@@ -1,4 +1,12 @@
-class Height_Map extends Scene_Component {
+class Entity extends Scene_Component {
+    constructor(context, control_box) {
+	super(context, control_box);
+    }
+
+    update (graphics_state) {} draw (graphics_state) {}
+}
+
+class Height_Map extends Entity {
     constructor(context, image, width, depth, subdivisions, min_height, max_height) {
 	super(context);
 	this.subdivisions = subdivisions;
@@ -58,7 +66,7 @@ class Height_Map extends Scene_Component {
     }
 }
 
-class Player extends Scene_Component {
+class Player extends Entity {
     constructor(context, control_box, height_map, initial_pos = Vec.of(150,0,1), initial_dir = Vec.of(0,0,1), run_speed = 6.705, look_speed = 0.2, height = 1.75) {
 	super(context, control_box);
 	
@@ -126,13 +134,15 @@ class Player extends Scene_Component {
 	}
     }
 
-    draw(graphics_state) {
+    update(graphics_state) {
 	this.calculateMovement(graphics_state.animation_delta_time / 1000);
 	graphics_state.camera_transform = Mat4.look_at(this.pos, this.pos.plus(this.dir), this.up);
     }
+
+    draw(graphics_state) {}
 }
 
-class Water extends Scene_Component {
+class Water extends Entity {
     constructor(context, size, z_pos) {
 	super(context);
 	this.size = size;
@@ -152,7 +162,7 @@ class Water extends Scene_Component {
     }
 }
 
-class Sky_Box extends Scene_Component {
+class Sky_Box extends Entity {
     constructor(context, size) {
 	super(context);
 
@@ -167,18 +177,17 @@ class Sky_Box extends Scene_Component {
 	this.geometry.draw(graphics_state, Mat4.scale([this.size/2, this.size/2, this.size/2]), this.material);
     }
 }
+
 window.Final_Project = window.classes.Final_Project =
 class Final_Project extends Scene_Component
   { constructor( context, control_box )     // The scene begins by requesting the camera, shapes, and materials it will need.
     { super(   context, control_box );    // First, include a secondary Scene that provides movement controls:
-      this.map = new Height_Map(context, "assets/heightmap.jpg", 1000, 1000, 128, -200, 300);
-      this.player = new Player(context, control_box.parentElement.insertCell(), this.map);
-      this.water = new Water(context, 1000, -110);
-      this.skybox = new Sky_Box(context, 1000);
+      var map = new Height_Map(context, "assets/heightmap.jpg", 1000, 1000, 128, -200, 300);
+      this.entities = [ map, this.player = new Player(context, control_box.parentElement.insertCell(), map), new Water(context, 1000, -110), new Sky_Box(context, 1000) ]
 	  
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 1500 );
-	  
+
       this.lights = [ new Light( Vec.of( 500,500,500,0 ), Color.of( 1,1,0.5,1 ), 10000000 ) ];
     }
     make_control_panel()            // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
@@ -190,9 +199,12 @@ class Final_Project extends Scene_Component
 	graphics_state.lights = this.lights;
         const t = graphics_state.animation_time / 1000, dt = graphics_state.animation_delta_time / 1000;
 
-	this.player.draw(graphics_state);
-	this.skybox.draw(graphics_state);
-	this.map.draw(graphics_state);
-	this.water.draw(graphics_state);
+	for (var i = 0; i < this.entities.length; i++) {
+	    this.entities[i].update(graphics_state);
+	}
+
+	for (var i = 0; i < this.entities.length; i++) {
+	    this.entities[i].draw(graphics_state);
+	}
     }
   }
