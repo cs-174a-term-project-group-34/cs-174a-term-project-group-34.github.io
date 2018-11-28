@@ -175,7 +175,7 @@ class Final_Project extends Scene_Component
   { constructor( context, control_box )     // The scene begins by requesting the camera, shapes, and materials it will need.
     { super(   context, control_box );    // First, include a secondary Scene that provides movement controls:
       var map = new Height_Map(context, "assets/heightmap.jpg", 1000, 1000, 128, -200, 300);
-      this.entities = [ map, this.player = new Player(context, control_box.parentElement.insertCell(), map), new Water(context, 1000, -110), new Sky_Box(context, 1000), new FR(context, control_box) ]
+      this.entities = [ map, this.player = new Player(context, control_box.parentElement.insertCell(), map), new Water(context, 1000, -110), new Sky_Box(context, 1000), new FishingRod(context, control_box) ]
 
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 1500 );
