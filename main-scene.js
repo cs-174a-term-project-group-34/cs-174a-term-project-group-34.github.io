@@ -1,11 +1,3 @@
-class Entity extends Scene_Component {
-    constructor(context, control_box) {
-	super(context, control_box);
-    }
-
-    update (graphics_state) {} draw (graphics_state) {}
-}
-
 class Height_Map extends Entity {
     constructor(context, image, width, depth, subdivisions, min_height, max_height) {
 	super(context);
@@ -14,25 +6,25 @@ class Height_Map extends Entity {
 	this.depth = depth;
 	this.min_height = min_height;
 	this.max_height = max_height;
-	
+
 	this.loaded = false;
 	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.5, specularity: 0, diffusivity: 0.3, texture: context.get_instance( "assets/terrain.jpg", true) } );
 
 	var self = this;
 	var img = new Image();
-	img.onload = () => {	
+	img.onload = () => {
 	    var canvas = document.createElement( 'canvas' );
 	    canvas.width = subdivisions;
 	    canvas.height = subdivisions;
 	    var img_context = canvas.getContext( '2d' );
-	    
+
 	    var size = subdivisions * subdivisions, data = new Float32Array( size );
-	    
+
 	    img_context.drawImage(img,0,0);
-	    
+
 	    var imgd = img_context.getImageData(0, 0, subdivisions, subdivisions);
 	    var pix = imgd.data;
-	    
+
 	    var j=0;
 	    for (var i = 0, n = pix.length; i < n; i += (4)) {
 		var all = pix[i]+pix[i+1]+pix[i+2];
@@ -69,7 +61,7 @@ class Height_Map extends Entity {
 class Player extends Entity {
     constructor(context, control_box, height_map, initial_pos = Vec.of(150,0,1), initial_dir = Vec.of(0,0,1), run_speed = 6.705, look_speed = 0.2, height = 1.75) {
 	super(context, control_box);
-	
+
 	this.height_map = height_map;
 
 	this.speed = run_speed;
@@ -89,7 +81,7 @@ class Player extends Entity {
 	// *** Mouse controls: ***
 	this.mouse = { "movement": Vec.of( 0,0 ) };                           // Measure mouse steering, for rotating the flyaround camera:
 	let canvas = context.canvas;
-	const mouse_position = ( e, rect = canvas.getBoundingClientRect() ) => 
+	const mouse_position = ( e, rect = canvas.getBoundingClientRect() ) =>
               Vec.of( e.clientX - (rect.left + rect.right)/2, e.clientY - (rect.bottom + rect.top)/2 );
 	// Set up mouse response.  The last one stops us from reacting if the mouse leaves the canvas.
 	canvas  .addEventListener( "mousedown", e => { canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;canvas.requestPointerLock() } );
@@ -100,7 +92,7 @@ class Player extends Entity {
 		this.mouse.movement[1] = e.movementY;
 	    }
 	} );
-	
+
 	this.key_triggered_button( "Forward", [ "w" ], () => this.forward = 1, undefined, () => this.forward = 0 );
 	this.key_triggered_button( "Backward", [ "s" ], () => this.backward = 1, undefined, () => this.backward = 0 );
 	this.key_triggered_button( "Left", [ "a" ], () => this.left = 1, undefined, () => this.left = 0 );
@@ -153,7 +145,7 @@ class Water extends Entity {
 	}
 
 	this.material = context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.85), { ambient: 0.5, specularity: 1.0, diffusivity: 0.3, reflectivity: 0.30, texture: context.get_instance( "assets/water.jpg", true ), envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } );
-	
+
 	this.submit_shapes(context, {water: this.geometry});
     }
 
@@ -184,7 +176,7 @@ class Final_Project extends Scene_Component
     { super(   context, control_box );    // First, include a secondary Scene that provides movement controls:
       var map = new Height_Map(context, "assets/heightmap.jpg", 1000, 1000, 128, -200, 300);
       this.entities = [ map, this.player = new Player(context, control_box.parentElement.insertCell(), map), new Water(context, 1000, -110), new Sky_Box(context, 1000) ]
-	  
+
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 1500 );
 
@@ -193,7 +185,7 @@ class Final_Project extends Scene_Component
     make_control_panel()            // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
     {
 	this.key_triggered_button( "Unlock Mouse", [ "u" ], () => { document.exitPointerLock = document.exitPointerLock    || document.mozExitPointerLock;   document.exitPointerLock(); } );
-    }    
+    }
     display( graphics_state )
     {
 	graphics_state.lights = this.lights;
