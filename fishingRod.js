@@ -14,46 +14,97 @@ class FishingRod extends Entity
                                      // Make some Material objects available to you:
         this.clay   = context.get_instance( Phong_Shader ).material( Color.of( .9,.5,.9, 1 ), { ambient: .4, diffusivity: .4 } );
         this.plastic = this.clay.override({ specularity: .6 });
+        this.states = {
+            walking: 0,
+            fishing_rest: 1,
+            wind_up: 2,
+            casting: 3,
+            waiting: 4,
+            reel_in: 5,
+            reel_fish: 6,
+            reel_up: 7,
+            hanging: 8,
+        }
+        this.state = this.states.walking;
+        this.parameter = 0;
+        this.space_pressed = false;
         this.casting = 0;
         this.windUp = 0;
         this.casted = 0;
         this.fishing = 1;
         this.power = 0;
         this.reel_in = 0;
-        this.key_triggered_button( "Cast", [ "k" ], () => this.casting = this.windUp = 1, undefined, () => this.windUp = 0 );
-        this.key_triggered_button( "Reel", [ "l" ], () => this.casting = 0);
-        this.key_triggered_button( "Fish", [ "f" ], () => this.fishing = !this.fishing);
+        this.key_triggered_button( "Cast", [ "k" ], () => {
+            if (this.state == this.states.fishing_rest || this.state == this.states.hanging) {
+                this.space_pressed = true;
+                this.state = this.states.wind_up;
+                this.parameter = 0;
+                this.power = 0;
+            }
+        }, undefined, () => {
+            if (this.state == this.states.wind_up){
+                this.space_pressed = false;
+            }
+        } );
+        this.key_triggered_button( "Reel", [ "l" ], () => {
+            if (this.state == this.states.waiting){
+                this.state = this.states.reel_in;
+            }
+        });
+        this.key_triggered_button( "Fish", [ "f" ], () => {
+            if (this.state == this.states.walking){
+                this.state = this.states.fishing_rest;
+            } else {
+                this.state = this.states.walking;
+            }
+        });
         this.time = 0;
       }
     update(graphics_state){
-        if(!this.fishing){
-            this.casting = 0;
-            this.windUp = 0;
-            this.casted = 0;
-            this.time = 0;
-        }
-        if(this.casting){
-            this.power = 10;
-            this.time += graphics_state.animation_delta_time/2;
-            if(this.windUp && !this.casted){
-                if(this.time > 500){
-                    this.time = 500;
+        var states = this.states;
+        switch (this.state){
+            case states.walking:
+            case states.fishing_rest:
+                this.parameter = 0;
+                this.power = 0;
+                break;
+            case states.wind_up:
+                this.parameter += graphics_state.animation_delta_time/2;
+                if (this.space_pressed) {
+                    this.power += graphics_state.animation_delta_time/300;
+                    this.parameter = Math.min(500, this.parameter);
+                } else if (this.parameter >= 500){
+                    this.state = states.casting;
+                } else {
+                    this.parameter = Math.min(500, this.parameter);
                 }
-            }else{
-                this.casted = 1;
-            }
-            if(this.time > 1200){
-                this.time = 1200;
-            }
-        }else if(this.power > 0){
-            this.power -= graphics_state.animation_delta_time/500;
-            this.power = Math.max(0, this.power);
-            this.reel_in = 1;
-        }else if(this.reel_in > 0){
-            this.reel_in -= graphics_state.animation_delta_time/1000;
-        }else{
-            this.time = 0;
-            this.casted = 0;
+                break;
+            case states.casting:
+                this.parameter += graphics_state.animation_delta_time/2;
+                this.parameter = Math.min(1200, this.parameter);
+                if (this.parameter == 1200) {
+                    this.state = states.waiting;
+                }
+                break;
+            case states.waiting:
+                break;
+            case states.reel_in:
+                this.power -= graphics_state.animation_delta_time/500;
+                this.power = Math.max(this.power, 0);
+                if (this.power == 0){
+                    this.state = states.reel_up;
+                }
+                this.parameter = 1;
+                break;
+            case states.reel_up:
+                this.parameter -= graphics_state.animation_delta_time/1000;
+                this.parameter = Math.max(this.parameter, 0);
+                if (this.parameter == 0){
+                    this.state = states.hanging;
+                }
+                break;
+            case states.hanging:
+                break;
         }
     }
     draw( graphics_state, material_override )
@@ -76,7 +127,7 @@ class FishingRod extends Entity
         const MIN_LINE_LEN = 0.25;
         const BUBBLE_SIZE = 0.04;
         const ROD_CIRC = 0.015;
-        const PLAYER_HEIGHT = 1.75;
+        const PLAYER_HEIGHT = 0.67;
         const REST_ANGLE = Math.asin(BUBBLE_SIZE/(MIN_LINE_LEN*2));
 
         var rod_elevation = ROD_HEIGHT/2*Math.cos(ANGLE_C);
@@ -87,7 +138,24 @@ class FishingRod extends Entity
         const CAST_DIST = this.power;
         const MAX_LINE_LEN = CAST_DIST ? CAST_DIST/Math.cos(Math.atan(ROD_ELEVATION/CAST_DIST)): ROD_ELEVATION;
         const LINE_ANGLE = CAST_DIST ? Math.PI/2+Math.atan(ROD_ELEVATION/CAST_DIST)-ANGLE_C-ANGLE_B : Math.PI-ANGLE_C-ANGLE_B;
-        var time = this.time;// % 1200;
+        var time = 0;
+        var states = this.states;
+        switch (this.state){
+            case states.walking:
+                return;
+            case states.fishing_rest:
+                break;
+            case states.wind_up:
+            case states.casting:
+                time = this.parameter;
+                break;
+            case states.waiting:
+            case states.reel_in:
+            case states.reel_up:
+            case states.hanging:
+                time = 1200;
+                break;
+        }
         //Position rod in fpv
         let model_transform = Mat4.inverse(graphics_state.camera_transform);
         model_transform = model_transform.times( Mat4.translation([ 0.5, -0.3, -1.02 ]) );
@@ -148,14 +216,9 @@ class FishingRod extends Entity
             model_transform = model_transform.times( Mat4.rotation(LINE_ANGLE*(time-FLICK)/(FALL-FLICK), Vec.of( 0,0,1 ) ) );
             scale += (MAX_LINE_LEN-MIN_LINE_LEN)*(STRAIGTEN_EXTENSION+(1-STRAIGTEN_EXTENSION)*(time-FLICK)/(FALL-FLICK));
         }
-        if(this.reel_in > 0){
-            scale *= this.reel_in;
+        if(this.state == states.reel_up || this.state == states.hanging){
+            scale *= this.parameter;
             scale = Math.max(MIN_LINE_LEN/2,scale);
-            if(scale == MIN_LINE_LEN/2){
-                this.reel_in = 0;
-                this.time = 0;
-                this.casted = 0;
-            }
         }
         model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
           this.shapes.cylinder.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC/4, scale, ROD_CIRC/4 ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.get_material(this.plastic.override({ color: Color.of(0,0,0.2,0.2) }), material_override) );
