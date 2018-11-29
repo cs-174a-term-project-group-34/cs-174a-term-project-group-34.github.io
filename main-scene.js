@@ -144,7 +144,7 @@ class Water extends Entity {
 	    this.geometry.texture_coords[i] = this.geometry.texture_coords[i].times(10);
 	}
 
-	this.material = context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.6), { ambient: 0.2, specularity: 1.0, diffusivity: 1.0, reflectivity: 0.3, texture: context.get_instance( "assets/water.jpg", true ), shadow_map: shadow_map, envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ) } );
+	this.material = context.get_instance( Water_Shader ).material(Color.of( 0, 0, 0, 0.5), { ambient: 0.2, specularity: 1.0, diffusivity: 1.0, reflectivity: 0.85, texture: context.get_instance( "assets/water.jpg", true ), shadow_map: shadow_map, envmap: context.get_instance( [ "assets/skybox/rt.png", "assets/skybox/lf.png", "assets/skybox/up.png", "assets/skybox/dn.png", "assets/skybox/bk.png", "assets/skybox/ft.png" ], true ), bump_map: context.get_instance("assets/water_bumpmap.jpg", true) } );
 
 	this.submit_shapes(context, {water: this.geometry});
     }

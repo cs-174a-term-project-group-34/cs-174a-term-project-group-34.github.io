@@ -575,8 +575,9 @@ class Water_Shader extends Phong_Shader
   shared_glsl_code()            // ********* SHARED CODE, INCLUDED IN BOTH SHADERS *********
     { return `precision mediump float;
         uniform mat4 inverse_camera_transform;
+        uniform mat3 inverse_transpose_modelview;
         uniform float ambient, diffusivity, specularity, smoothness, animation_time, attenuation_factor, reflectivity;
-        uniform bool USE_TEXTURE, USE_ENVMAP, USE_SHADOW_MAP;               // Flags for alternate shading methods
+        uniform bool USE_TEXTURE, USE_ENVMAP, USE_SHADOW_MAP, USE_BUMP_MAP;               // Flags for alternate shading methods
         uniform vec4 lightPosition, lightColor, shapeColor;
         varying vec3 N, E;                    // Specifier "varying" means a variable's final value will be passed from the vertex shader 
         varying vec2 f_tex_coord;             // on to the next phase (fragment shader), then interpolated per-fragment, weighted by the 
@@ -593,19 +594,21 @@ class Water_Shader extends Phong_Shader
         attribute vec2 tex_coord;
 
         uniform mat4 model_transform, camera_transform, camera_model_transform, projection_camera_model_transform, light_projection_camera_transform;
-        uniform mat3 inverse_transpose_modelview;
 
         void main()
         { gl_Position = projection_camera_model_transform * vec4(object_space_pos, 1.0);     // The vertex's final resting place (in NDCS).
           worldspace_coord = model_transform * vec4(object_space_pos, 1.0);
           shadow_coord = light_projection_camera_transform * worldspace_coord;
           N = normalize( inverse_transpose_modelview * normal );                             // The final normal vector in screen space.
+          vec3 T = normalize( inverse_transpose_modelview * vec3(1,0,0) );
+          vec3 B = normalize( inverse_transpose_modelview * vec3(0,0,1) );
+          mat3 TBN = mat3(T.x, B.x, N.x, T.y, B.y, N.y, T.z, B.z, N.z);
           f_tex_coord = tex_coord;                                         // Directly use original texture coords and interpolate between.
           
           vec3 screen_space_pos = ( camera_model_transform * vec4(object_space_pos, 1.0) ).xyz;
-          E = normalize( -screen_space_pos );
+          E = TBN * normalize( -screen_space_pos );
 
-            L = normalize( ( camera_transform * lightPosition ).xyz - lightPosition.w * screen_space_pos );
+            L = TBN * normalize( ( camera_transform * lightPosition ).xyz - lightPosition.w * screen_space_pos );
             H = normalize( L + E );
             
             // Is it a point light source?  Calculate the distance to it from the object.  Otherwise use some arbitrary distance.
@@ -620,6 +623,7 @@ class Water_Shader extends Phong_Shader
         uniform sampler2D texture;
         uniform samplerCube envmap;
         uniform sampler2D shadow_map;
+        uniform sampler2D bump_map;
 
         vec4 color;
 
@@ -688,9 +692,15 @@ return vec2( 0.14383161, -0.14100790 );
 
         void main()
         { 
-          vec4 tex_color = texture2D(texture, f_tex_coord);
-          vec3 reflected = reflect(-E, N);
-          reflected = vec3(inverse_camera_transform * vec4(reflected, 0.0));
+          vec2 tex_coord = vec2(mod(f_tex_coord.x - 0.05*animation_time, 10.0), mod(f_tex_coord.y - 0.05*animation_time, 10.0));
+          vec4 tex_color = texture2D(texture, tex_coord);
+          vec3 normal = N;
+          if (USE_BUMP_MAP) normal = normalize(texture2D(bump_map, tex_coord).rgb * 2.0 - 1.0);
+          vec3 reflected = reflect(-E, normal);
+          vec3 T = normalize( inverse_transpose_modelview * vec3(1,0,0) );
+          vec3 B = normalize( inverse_transpose_modelview * vec3(0,0,1)); 
+          mat3 TBN_transp = mat3(T.x, T.y, T.z, B.x, B.y, B.z, N.x, N.y, N.z);
+          reflected = vec3(inverse_camera_transform * vec4(TBN_transp * reflected, 0.0));
           vec4 envmap_color = textureCube( envmap, reflected );
 
           color = shapeColor;
@@ -699,7 +709,7 @@ return vec2( 0.14383161, -0.14100790 );
           if( USE_ENVMAP ) color = vec4(reflectivity*envmap_color.xyz + (1.0 - reflectivity)*color.xyz, envmap_color.w * color.w);
           gl_FragColor = vec4( color.xyz * ambient, color.w );
 
-          gl_FragColor.xyz += phong_model_lights( N );                     // Compute the final color with contributions from lights.
+          gl_FragColor.xyz += phong_model_lights( normal );                     // Compute the final color with contributions from lights.
         }`;
     }
     // Define how to synchronize our JavaScript's variables to the GPU's:
@@ -718,6 +728,7 @@ return vec2( 0.14383161, -0.14100790 );
       gl.uniform1i(gpu.texture_loc, 0);
 	gl.uniform1i(gpu.envmap_loc, 1);
 	gl.uniform1i(gpu.shadow_map_loc, 2);
+	gl.uniform1i(gpu.bump_map_loc, 3);
 
       if( material.texture )                           // NOTE: To signal not to draw a texture, omit the texture parameter from Materials.
       { gpu.shader_attributes["tex_coord"].enabled = true;
@@ -742,6 +753,14 @@ return vec2( 0.14383161, -0.14100790 );
 	    gl.bindTexture(gl.TEXTURE_2D, material.shadow_map.id);
 	} else {
 	    gl.uniform1f(gpu.USE_SHADOW_MAP_loc, 0);
+	}
+
+	if( material.bump_map ) {
+	    gl.uniform1f(gpu.USE_BUMP_MAP_loc, 1);
+	    gl.activeTexture(gl.TEXTURE3);
+	    gl.bindTexture(gl.TEXTURE_2D, material.bump_map.id);
+	} else {
+	    gl.uniform1f(gpu.USE_BUMP_MAP_loc, 0);
 	}
 	
 	if( !g_state.light )  return;
