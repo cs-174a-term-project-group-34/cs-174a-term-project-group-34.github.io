@@ -8,7 +8,7 @@ class Height_Map extends Entity {
 	this.max_height = max_height;
 
 	this.loaded = false;
-	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.2, specularity: 0.0, diffusivity: 1.0, texture: context.get_instance( "assets/terrainf2.png", true), shadow_map: shadow_map } );
+	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.2, specularity: 0.0, diffusivity: 1.0, texture: context.get_instance( "assets/terrainf3.png", true), shadow_map: shadow_map } );
 
 	var self = this;
 	var img = new Image();
