@@ -196,7 +196,7 @@ class Final_Project extends Scene_Component
       this.light = new Light( Vec.of( 500,250,-500,0 ), Color.of( 1,1,0.5,1 ), 10000, Vec.of(-600, -600, -600), Vec.of(600, 600, 600));
     }
     create_shadow_framebuffer(gl) {
-	this.shadow_map_size = 2048;
+	this.shadow_map_size = 1024;
 
 	gl.getExtension("WEBGL_depth_texture");
 	this.shadow_map = new Texture(gl, "", false, false);
