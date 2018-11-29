@@ -18,6 +18,8 @@ class FishingRod extends Entity
         this.windUp = 0;
         this.casted = 0;
         this.fishing = 1;
+        this.power = 0;
+        this.reel_in = 0;
         this.key_triggered_button( "Cast", [ "k" ], () => this.casting = this.windUp = 1, undefined, () => this.windUp = 0 );
         this.key_triggered_button( "Reel", [ "l" ], () => this.casting = 0);
         this.key_triggered_button( "Fish", [ "f" ], () => this.fishing = !this.fishing);
@@ -31,6 +33,7 @@ class FishingRod extends Entity
             this.time = 0;
         }
         if(this.casting){
+            this.power = 10;
             this.time += graphics_state.animation_delta_time/2;
             if(this.windUp && !this.casted){
                 if(this.time > 500){
@@ -42,6 +45,12 @@ class FishingRod extends Entity
             if(this.time > 1200){
                 this.time = 1200;
             }
+        }else if(this.power > 0){
+            this.power -= graphics_state.animation_delta_time/500;
+            this.power = Math.max(0, this.power);
+            this.reel_in = 1;
+        }else if(this.reel_in > 0){
+            this.reel_in -= graphics_state.animation_delta_time/1000;
         }else{
             this.time = 0;
             this.casted = 0;
@@ -67,14 +76,24 @@ class FishingRod extends Entity
         const MIN_LINE_LEN = 0.25;
         const BUBBLE_SIZE = 0.04;
         const ROD_CIRC = 0.015;
+        const PLAYER_HEIGHT = 1.75;
         const REST_ANGLE = Math.asin(BUBBLE_SIZE/(MIN_LINE_LEN*2));
-        const MAX_LINE_LEN = 10;
-        const LINE_ANGLE = Math.PI/2+Math.asin(ROD_HEIGHT/MAX_LINE_LEN)-ANGLE_C-ANGLE_B;
+
+        var rod_elevation = ROD_HEIGHT/2*Math.cos(ANGLE_C);
+        for (var i = 0; i < NUM_SEG; i++){
+            rod_elevation += Math.cos(ANGLE_C+(i+1)*ANGLE_B/NUM_SEG) * ROD_HEIGHT/(2*NUM_SEG);
+        }
+        const ROD_ELEVATION = rod_elevation/2+PLAYER_HEIGHT;
+        const CAST_DIST = this.power;
+        const MAX_LINE_LEN = CAST_DIST ? CAST_DIST/Math.cos(Math.atan(ROD_ELEVATION/CAST_DIST)): ROD_ELEVATION;
+        const LINE_ANGLE = CAST_DIST ? Math.PI/2+Math.atan(ROD_ELEVATION/CAST_DIST)-ANGLE_C-ANGLE_B : Math.PI-ANGLE_C-ANGLE_B;
         var time = this.time;// % 1200;
         //Position rod in fpv
         let model_transform = Mat4.inverse(graphics_state.camera_transform);
-        model_transform = model_transform.times( Mat4.translation([ 0.5, -0.3, -1 ]) );
+        model_transform = model_transform.times( Mat4.translation([ 0.5, -0.3, -1.02 ]) );
         model_transform = model_transform.times( Mat4.rotation( -Math.PI/2, Vec.of( 0,1,0 ) ) );//
+        // model_transform = model_transform.times( Mat4.translation([ 0.5, -0.3, -10 ]) );
+        // model_transform = model_transform.times( Mat4.rotation( 0, Vec.of( 0,1,0 ) ) );//-Math.PI/2
 
         //Draw rod handle
         model_transform = model_transform.times( Mat4.translation([ 0, -ROD_HEIGHT/2, 0 ]) );
@@ -128,6 +147,15 @@ class FishingRod extends Entity
         }else{
             model_transform = model_transform.times( Mat4.rotation(LINE_ANGLE*(time-FLICK)/(FALL-FLICK), Vec.of( 0,0,1 ) ) );
             scale += (MAX_LINE_LEN-MIN_LINE_LEN)*(STRAIGTEN_EXTENSION+(1-STRAIGTEN_EXTENSION)*(time-FLICK)/(FALL-FLICK));
+        }
+        if(this.reel_in > 0){
+            scale *= this.reel_in;
+            scale = Math.max(MIN_LINE_LEN/2,scale);
+            if(scale == MIN_LINE_LEN/2){
+                this.reel_in = 0;
+                this.time = 0;
+                this.casted = 0;
+            }
         }
         model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
           this.shapes.cylinder.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC/4, scale, ROD_CIRC/4 ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.get_material(this.plastic.override({ color: Color.of(0,0,0.2,0.2) }), material_override) );
