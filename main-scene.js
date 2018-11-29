@@ -8,7 +8,7 @@ class Height_Map extends Entity {
 	this.max_height = max_height;
 
 	this.loaded = false;
-	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.2, specularity: 0.0, diffusivity: 1.0, texture: context.get_instance( "assets/terrain.jpg", true), shadow_map: shadow_map } );
+	this.material = context.get_instance( Phong_Shader ).material(Color.of( 0, 0, 0, 1 ), { ambient: 0.2, specularity: 0.0, diffusivity: 1.0, texture: context.get_instance( "assets/terrainf2.png", true), shadow_map: shadow_map } );
 
 	var self = this;
 	var img = new Image();
@@ -179,8 +179,8 @@ class Final_Project extends Scene_Component
       this.shadow_shader = context.get_instance(Shadow_Shader).material();
       this.create_shadow_framebuffer(context.gl);
 
-      this.map = new Height_Map(context, this.shadow_map, "assets/heightmap.jpg", 1000, 1000, 128, -200, 300);
-      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map), this.water = new Water(context, this.shadow_map, 1000, -110), new Sky_Box(context, 1000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
+      this.map = new Height_Map(context, this.shadow_map, "assets/heightmapf.png", 1010, 1010, 512, -50, 100);
+      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map), this.water = new Water(context, this.shadow_map, 1000, -16), new Sky_Box(context, 1000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
       this.shadowers = [ this.map, this.fishing_rod ];
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 1500 );
@@ -194,7 +194,7 @@ class Final_Project extends Scene_Component
 	this.shadow_map = new Texture(gl, "", false, false);
 	gl.bindTexture(gl.TEXTURE_2D, this.shadow_map.id);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, this.shadow_map_size, this.shadow_map_size, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
-	gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST ); 
+	gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST );
 	gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST );
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -203,7 +203,7 @@ class Final_Project extends Scene_Component
 	var color_buffer = gl.createRenderbuffer();
 	gl.bindRenderbuffer(gl.RENDERBUFFER, color_buffer);
 	gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA4, this.shadow_map_size, this.shadow_map_size);
-      
+
 	this.shadow_map_fb = gl.createFramebuffer();
 	gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadow_map_fb);
 	gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color_buffer);
@@ -230,12 +230,12 @@ class Final_Project extends Scene_Component
 	for (var i = 0; i < this.shadowers.length; i++) {
 	    this.shadowers[i].draw(graphics_state, this.shadow_shader);
 	}
-	
+
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 	for (var i = 0; i < this.entities.length; i++) {
 	    this.entities[i].draw(graphics_state);
 	}
-	
+
     }
   }
