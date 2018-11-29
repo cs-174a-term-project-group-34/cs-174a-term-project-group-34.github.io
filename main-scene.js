@@ -30,8 +30,8 @@ class Height_Map extends Entity {
 		var all = pix[i]+pix[i+1]+pix[i+2];
 		data[j++] = min_height + all/(255+255+255) * max_height;
 	    }
-	    self.geometry = new Grid_Patch( subdivisions, subdivisions, i => Vec.of(0, data[Math.floor(i * subdivisions * subdivisions)], i),
-					    (j, p, i) => Vec.of(j, data[Math.floor(i * subdivisions * subdivisions + j * subdivisions)], i), [[0,1], [1,0]]);
+	    self.geometry = new Grid_Patch( subdivisions - 1, subdivisions - 1, i => Vec.of(0, data[i * (subdivisions - 1) * subdivisions], i),
+					    (j, p, i) => Vec.of(j, data[i * (subdivisions - 1) * subdivisions + j * (subdivisions - 1)], i), [[0,1], [1,0]] );
 	    self.height_data = data;
 	    self.submit_shapes( context, { map: self.geometry } );
 	    self.loaded = true;
@@ -50,6 +50,7 @@ class Height_Map extends Entity {
 	var z1 = Math.ceil(z);
 	var z0 = Math.floor(z);
 	var x = (world_x + this.width/2)/this.width * subdivisions;
+	if (x < 0 || x > subdivisions) return undefined;
 	var x1 = Math.ceil(x);
 	var x0 = Math.floor(x);
 	var x0_z_height = this.height_data[z0 * subdivisions + x0] * (z1 - z) + this.height_data[z1 * subdivisions + x0] * (z - z0);
@@ -179,13 +180,13 @@ class Final_Project extends Scene_Component
       this.shadow_shader = context.get_instance(Shadow_Shader).material();
       this.create_shadow_framebuffer(context.gl);
 
-      this.map = new Height_Map(context, this.shadow_map, "assets/heightmapf.png", 1010, 1010, 512, -50, 100);
-      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map), this.water = new Water(context, this.shadow_map, 1000, -16), new Sky_Box(context, 1000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
+      this.map = new Height_Map(context, this.shadow_map, "assets/heightmapf.png", 1000, 1000, 512, -50, 100);
+      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map), this.water = new Water(context, this.shadow_map, 1000, -16), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
       this.shadowers = [ this.map, this.fishing_rod ];
       const r = context.width/context.height;
-      context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 1500 );
+      context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 5000 );
 
-      this.light = new Light( Vec.of( 500,500,-500,0 ), Color.of( 1,1,0.5,1 ), 10000, Vec.of(-500, -500, -500), Vec.of(500, 500, 500));
+      this.light = new Light( Vec.of( 500,250,-500,0 ), Color.of( 1,1,0.5,1 ), 10000, Vec.of(-600, -600, -600), Vec.of(600, 600, 600));
     }
     create_shadow_framebuffer(gl) {
 	this.shadow_map_size = 2048;
