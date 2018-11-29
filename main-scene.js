@@ -60,10 +60,11 @@ class Height_Map extends Entity {
 }
 
 class Player extends Entity {
-    constructor(context, control_box, height_map, initial_pos = Vec.of(150,0,1), initial_dir = Vec.of(0,0,1), run_speed = 67.05, look_speed = 0.2, height = 1.75) {
+    constructor(context, control_box, height_map, min_y, initial_pos = Vec.of(250,0,100), initial_dir = Vec.of(0,0,1), run_speed = 67.05, look_speed = 0.2, height = 1.75) {
 	super(context, control_box);
 
 	this.height_map = height_map;
+	this.min_y = min_y;
 
 	this.speed = run_speed;
 	this.radians_per_frame = look_speed;
@@ -110,6 +111,7 @@ class Player extends Entity {
 	this.pitch = new_pitch; this.mouse.movement[0] = 0; this.mouse.movement[1] = 0;
 
 	var right = this.dir.cross(this.up);
+	var old_pos = this.pos.copy();
 	this.pos[0] += this.forward * this.dir[0] * this.speed * dt;
 	this.pos[2] += this.forward * this.dir[2] * this.speed * dt;
 
@@ -123,7 +125,11 @@ class Player extends Entity {
 	this.pos[2] -= this.left * right[2] * this.speed * dt;
 
 	if(this.height_map.loaded) {
-	    this.pos[1] = this.height_map.sample_height(this.pos[0], this.pos[2]) + this.height;
+	    var height_sample = this.height_map.sample_height(this.pos[0], this.pos[2]);
+	    if (!height_sample || height_sample < this.min_y)
+		this.pos = old_pos;
+	    else
+		this.pos[1] = this.height_map.sample_height(this.pos[0], this.pos[2]) + this.height;
 	}
     }
 
@@ -180,8 +186,9 @@ class Final_Project extends Scene_Component
       this.shadow_shader = context.get_instance(Shadow_Shader).material();
       this.create_shadow_framebuffer(context.gl);
 
-      this.map = new Height_Map(context, this.shadow_map, "assets/heightmapf.png", 1000, 1000, 512, -50, 100);
-      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map), this.water = new Water(context, this.shadow_map, 1000, -16), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
+      this.map = new Height_Map(context, this.shadow_map, "assets/heightmapf5.png", 1000, 1000, 512, -100, 200);
+      this.water_height = -50;
+      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map, this.water_height), this.water = new Water(context, this.shadow_map, 1000, this.water_height), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
       this.shadowers = [ this.map, this.fishing_rod ];
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 5000 );

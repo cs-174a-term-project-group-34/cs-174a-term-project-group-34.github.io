@@ -692,7 +692,7 @@ return vec2( 0.14383161, -0.14100790 );
 
         void main()
         { 
-          vec2 tex_coord = vec2(mod(f_tex_coord.x - 0.05*animation_time, 10.0), mod(f_tex_coord.y - 0.05*animation_time, 10.0));
+          vec2 tex_coord = vec2(mod(f_tex_coord.x - 0.025*animation_time, 10.0), mod(f_tex_coord.y - 0.025*animation_time, 10.0));
           vec4 tex_color = texture2D(texture, tex_coord);
           vec3 normal = N;
           if (USE_BUMP_MAP) normal = normalize(texture2D(bump_map, tex_coord).rgb * 2.0 - 1.0);
