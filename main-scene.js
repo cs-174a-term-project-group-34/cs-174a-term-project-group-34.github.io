@@ -187,7 +187,7 @@ class Final_Project extends Scene_Component
       this.create_shadow_framebuffer(context.gl);
 
       this.map = new Height_Map(context, this.shadow_map, "assets/heightmapf5.png", 1000, 1000, 512, -100, 200);
-      this.water_height = -50;
+      this.water_height = -50.5;
       this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map, this.water_height), this.water = new Water(context, this.shadow_map, 1000, this.water_height), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
       this.shadowers = [ this.map, this.fishing_rod ];
       const r = context.width/context.height;

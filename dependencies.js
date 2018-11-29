@@ -480,7 +480,7 @@ return vec2( 0.14383161, -0.14100790 );
             if (USE_SHADOW_MAP) {
                 for (int i=0;i<samples;i++){
                     int index = int(mod(16.0*random(floor(worldspace_coord.xyz*1000.0), i), 16.0));
-                    if ( texture2D( shadow_map, shadow_coord.xy + poissonDiskSample(index)/1000.0 ).z  <  shadow_coord.z-bias ){
+                    if ( texture2D( shadow_map, shadow_coord.xy + poissonDiskSample(index)/1000.0 ).x  <  shadow_coord.z-bias ){
                         visibility-=0.8/float(samples);
                     }
                 }
@@ -677,7 +677,7 @@ return vec2( 0.14383161, -0.14100790 );
             if (USE_SHADOW_MAP) {
                 for (int i=0;i<samples;i++){
                     int index = int(mod(16.0*random(floor(worldspace_coord.xyz*1000.0), i), 16.0));
-                    if ( texture2D( shadow_map, shadow_coord.xy + poissonDiskSample(index)/1000.0 ).z  <  shadow_coord.z-bias ){
+                    if ( texture2D( shadow_map, shadow_coord.xy + poissonDiskSample(index)/1000.0 ).x  <  shadow_coord.z-bias ){
                         visibility-=0.8/float(samples);
                     }
                 }
