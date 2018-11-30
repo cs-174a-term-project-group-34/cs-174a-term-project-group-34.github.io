@@ -210,7 +210,7 @@ class Final_Project extends Scene_Component
       this.map = new Height_Map(context, this.shadow_map, "assets/heightmapf5.png", 1000, 1000, 512, -100, 200);
       this.water_height = -50.5;
       this.player = new Player(context, control_box.parentElement.insertCell(), this.map, this.water_height)
-      this.entities = [ this.map, this.player, this.water = new Water(context, this.shadow_map, 1000, this.water_height), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell(), this.player), this.dock = new Dock(context, control_box)]
+      this.entities = [ this.map, this.player, this.water = new Water(context, this.shadow_map, 1000, this.water_height), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell(), this.player), this.dock = new Dock(context, control_box, this.shadow_map)]
       this.shadowers = [ this.map, this.fishing_rod, this.dock ];
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 5000 );
