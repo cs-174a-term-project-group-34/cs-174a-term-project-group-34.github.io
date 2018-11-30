@@ -5,7 +5,8 @@ class FishingRod extends Entity
 
         const shapes = {'box': new Cube(),
                         'cylinder': new Surface_Of_Revolution(3,20, [Vec.of(0,0,1),Vec.of(0,1,1),Vec.of(0,1,-1),Vec.of(0,0,-1)], [ [ 0, 1 ], [ 0,20 ] ]),//new Cube(),               // At the beginning of our program, load one of each of these shape
-                        'ball': new Subdivision_Sphere(4)}      // design.  Once you've told the GPU what the design of a cube is,
+                        'ball': new Subdivision_Sphere(4),
+                        'fish': new Shape_From_File("assets/fish.obj")}      // design.  Once you've told the GPU what the design of a cube is,
         this.submit_shapes( context, shapes );            // it would be redundant to tell it again.  You should just re-use
                                                           // the one called "box" more than once in display() to draw
                                                           // multiple cubes.  Don't define more than one blueprint for the
@@ -14,6 +15,8 @@ class FishingRod extends Entity
                                      // Make some Material objects available to you:
         this.clay   = context.get_instance( Phong_Shader ).material( Color.of( .9,.5,.9, 1 ), { ambient: .4, diffusivity: .4 } );
         this.plastic = this.clay.override({ specularity: .6 });
+        this.texture   = context.get_instance( Phong_Shader ).material( Color.of( 0,0,0, 1 ), { ambient: .8, diffusivity: .2, specularity: 0 } );
+        this.fish_texture = this.texture.override({texture: context.get_instance( "assets/fish_texture.png", true )});
         this.states = {
             walking: 0,
             fishing_rest: 1,
@@ -128,6 +131,7 @@ class FishingRod extends Entity
         const NUM_SEG = 8;
         const MIN_LINE_LEN = 0.25;
         const BUBBLE_SIZE = 0.04;
+        const FISH_SIZE = 0.2;
         const ROD_CIRC = 0.015;
         const PLAYER_HEIGHT = 0.75;
         const REST_ANGLE = Math.asin(BUBBLE_SIZE/(MIN_LINE_LEN*2));
@@ -230,5 +234,6 @@ class FishingRod extends Entity
           this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,0,0,1)}), material_override));
         model_transform = model_transform.times( Mat4.translation([ 0, 0.01, 0 ]) );
           this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,1,1,1)}), material_override) );
+          // this.shapes.fish.draw(graphics_state, model_transform.times(Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ).times( Mat4.scale([ FISH_SIZE, FISH_SIZE, FISH_SIZE ])),this.get_material(this.fish_texture, material_override) );
       }
   }
