@@ -60,7 +60,7 @@ class Height_Map extends Entity {
 }
 
 class Player extends Entity {
-    constructor(context, control_box, height_map, min_y, initial_pos = Vec.of(250,0,100), initial_dir = Vec.of(0,0,1), run_speed = 67.05, look_speed = 0.2, height = 1.75) {
+    constructor(context, control_box, height_map, min_y, initial_pos = Vec.of(-165,-50,60), initial_dir = Vec.of(0,0,1), run_speed = 6.05, look_speed = 0.2, height = 1.75) {
 	super(context, control_box);
 
 	this.height_map = height_map;
@@ -79,6 +79,7 @@ class Player extends Entity {
 	this.backward = 0;
 	this.left = 0;
 	this.right = 0;
+    this.run = false;
 
 	// *** Mouse controls: ***
 	this.mouse = { "movement": Vec.of( 0,0 ) };                           // Measure mouse steering, for rotating the flyaround camera:
@@ -99,38 +100,58 @@ class Player extends Entity {
 	this.key_triggered_button( "Backward", [ "s" ], () => this.backward = 1, undefined, () => this.backward = 0 );
 	this.key_triggered_button( "Left", [ "a" ], () => this.left = 1, undefined, () => this.left = 0 );
 	this.key_triggered_button( "Right", [ "d" ], () => this.right = 1, undefined, () => this.right = 0 );
+    this.key_triggered_button( "Toggle Run", [ "Shift" ], () => this.run = 1, undefined, () => this.run = 0);
     }
-
+    toggleFishing(){
+        if (!this.fishing && this.pos[0] < -152.5 && this.pos[0] > -154 && this.pos[2] < 60.5 && this.pos[2] > 59.5){
+            this.fishing = true;
+            this.pos = Vec.of(-153,-50,60);
+            return true;
+        }
+        if(this.fishing){
+            this.fishing = false;
+        }
+        return false;
+    }
     calculateMovement(dt, leeway = 70) {
 	var new_pitch =  this.pitch + this.mouse.movement[1] * this.radians_per_frame * dt;
 	if (new_pitch >= Math.PI/2) new_pitch = Math.PI/2 - 0.001;
 	else if (new_pitch <= -Math.PI/2) new_pitch = -Math.PI/2 + 0.001;
+    if(this.fishing)
+        new_pitch = 0;
 
 	var axis = this.up.cross(this.dir).normalized();
 	this.dir = Mat4.rotation(this.mouse.movement[0] * this.radians_per_frame * dt, Vec.of(0,-1,0)).times(Mat4.rotation(new_pitch - this.pitch, axis)).times(this.dir.to4(false)).to3();
 	this.pitch = new_pitch; this.mouse.movement[0] = 0; this.mouse.movement[1] = 0;
 
+    var speed = this.speed;
+    if(this.run)
+        speed *= 10;
 	var right = this.dir.cross(this.up);
 	var old_pos = this.pos.copy();
-	this.pos[0] += this.forward * this.dir[0] * this.speed * dt;
-	this.pos[2] += this.forward * this.dir[2] * this.speed * dt;
+	this.pos[0] += this.forward * this.dir[0] * speed * dt;
+	this.pos[2] += this.forward * this.dir[2] * speed * dt;
 
-	this.pos[0] -= this.backward * this.dir[0] * this.speed * dt;
-	this.pos[2] -= this.backward * this.dir[2] * this.speed * dt;
+	this.pos[0] -= this.backward * this.dir[0] * speed * dt;
+	this.pos[2] -= this.backward * this.dir[2] * speed * dt;
 
-	this.pos[0] += this.right * right[0] * this.speed * dt;
-	this.pos[2] += this.right * right[2] * this.speed * dt;
+	this.pos[0] += this.right * right[0] * speed * dt;
+	this.pos[2] += this.right * right[2] * speed * dt;
 
-	this.pos[0] -= this.left * right[0] * this.speed * dt;
-	this.pos[2] -= this.left * right[2] * this.speed * dt;
+	this.pos[0] -= this.left * right[0] * speed * dt;
+	this.pos[2] -= this.left * right[2] * speed * dt;
 
 	if(this.height_map.loaded) {
 	    var height_sample = this.height_map.sample_height(this.pos[0], this.pos[2]);
+        if (this.pos[0] < -152.5 && this.pos[0] > -157.5 && this.pos[2] < 61 && this.pos[2] > 59)
+            height_sample = -50;
 	    if (!height_sample || height_sample < this.min_y)
 		this.pos = old_pos;
 	    else
-		this.pos[1] = this.height_map.sample_height(this.pos[0], this.pos[2]) + this.height;
+		this.pos[1] = height_sample + this.height;
 	}
+    if(this.fishing)
+        this.pos = Vec.of(-153,-50+this.height,60);
     }
 
     update(graphics_state) {
@@ -188,8 +209,9 @@ class Final_Project extends Scene_Component
 
       this.map = new Height_Map(context, this.shadow_map, "assets/heightmapf5.png", 1000, 1000, 512, -100, 200);
       this.water_height = -50.5;
-      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map, this.water_height), this.water = new Water(context, this.shadow_map, 1000, this.water_height), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
-      this.shadowers = [ this.map, this.fishing_rod ];
+      this.player = new Player(context, control_box.parentElement.insertCell(), this.map, this.water_height)
+      this.entities = [ this.map, this.player, this.water = new Water(context, this.shadow_map, 1000, this.water_height), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell(), this.player), this.dock = new Dock(context, control_box)]
+      this.shadowers = [ this.map, this.fishing_rod, this.dock ];
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 5000 );
 

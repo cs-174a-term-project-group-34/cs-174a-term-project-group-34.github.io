@@ -1,6 +1,6 @@
 window.FishingRod = window.classes.FishingRod =
 class FishingRod extends Entity
-  { constructor( context, control_box )     // The scene begins by requesting the camera, shapes, and materials it will need.
+  { constructor( context, control_box, player)     // The scene begins by requesting the camera, shapes, and materials it will need.
       { super(   context, control_box );    // First, include a secondary Scene that provides movement controls:
 
         const shapes = {'box': new Cube(),
@@ -25,6 +25,7 @@ class FishingRod extends Entity
             reel_up: 7,
             hanging: 8,
         }
+        this.player = player;
         this.state = this.states.walking;
         this.parameter = 0;
         this.space_pressed = false;
@@ -52,7 +53,8 @@ class FishingRod extends Entity
             }
         });
         this.key_triggered_button( "Fish", [ "f" ], () => {
-            if (this.state == this.states.walking){
+            var toggleFishing = this.player.toggleFishing();
+            if (this.state == this.states.walking && toggleFishing){
                 this.state = this.states.fishing_rest;
             } else {
                 this.state = this.states.walking;
@@ -127,7 +129,7 @@ class FishingRod extends Entity
         const MIN_LINE_LEN = 0.25;
         const BUBBLE_SIZE = 0.04;
         const ROD_CIRC = 0.015;
-        const PLAYER_HEIGHT = 0.67;
+        const PLAYER_HEIGHT = 0.75;
         const REST_ANGLE = Math.asin(BUBBLE_SIZE/(MIN_LINE_LEN*2));
 
         var rod_elevation = ROD_HEIGHT/2*Math.cos(ANGLE_C);
