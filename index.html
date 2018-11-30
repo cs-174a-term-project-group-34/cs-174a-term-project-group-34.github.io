@@ -12,7 +12,7 @@
   * { font-family: monospace }
   body { background: DarkGray }
   div { background: white }
-  canvas { width: 1080px; height: 600px; margin-bottom:-3px }
+  /*canvas { width: 1080px; height: 600px; margin-bottom:-3px }*/
   .canvas-widget { width: 1080px; background: DimGray }
   table { border-collapse: collapse; display:block; overflow-x: auto; }
   table.control-box { width: 1080px; border:0; margin:0; max-height:380px; transition:.5s; overflow-y:scroll; background:DimGray }
@@ -34,6 +34,11 @@
 </head><body>       <!-- Begin typing the next of your web page here. //-->
 
 <div id="main-canvas" class="canvas-widget"></div>
+<div id='d1' style="position:absolute; top:50px; left:50px; z-index:1; background: none">  
+      <canvas id='overlay_canvas' width='20' height='100'>
+            Your browser does not support HTML5 Canvas.
+    </canvas>
+</div>
 <script> "use strict"     // ********************* THE ENTRY POINT OF YOUR WHOLE PROGRAM STARTS HERE *********************
                                            // Use this code to embed a widget into any web page.  The widget inclues a 3D WebGL area
                                            // (an HTML canvas) and various panels of controls.
@@ -42,5 +47,9 @@
                                            // draw / keyboard / mouse event happens on the web page.
   new Canvas_Widget( "main-canvas", scenes );             // Use the Canvas_Widget class to display the WebGL demo.  Pass in
                                                           // the name of the HTML element we are to replace with the widget.
+
+
 </script>
+
+
 </body></html>

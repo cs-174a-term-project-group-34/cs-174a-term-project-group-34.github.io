@@ -188,12 +188,17 @@ class Final_Project extends Scene_Component
 
       this.map = new Height_Map(context, this.shadow_map, "assets/heightmapf5.png", 1000, 1000, 512, -100, 200);
       this.water_height = -50.5;
-      this.entities = [ this.map, this.player = new Player(context, control_box.parentElement.insertCell(), this.map, this.water_height), this.water = new Water(context, this.shadow_map, 1000, this.water_height), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
+      this.entities = [ this.map, 
+      					this.player = new Player(context, control_box.parentElement.insertCell(), this.map, this.water_height), 
+      					this.water = new Water(context, this.shadow_map, 1000, this.water_height), 
+      					new Sky_Box(context, 5000), 
+      					this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell())]
       this.shadowers = [ this.map, this.fishing_rod ];
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 5000 );
 
       this.light = new Light( Vec.of( 500,250,-500,0 ), Color.of( 1,1,0.5,1 ), 10000, Vec.of(-600, -600, -600), Vec.of(600, 600, 600));
+      this.key_press = 0
     }
     create_shadow_framebuffer(gl) {
 	this.shadow_map_size = 1024;
@@ -244,6 +249,34 @@ class Final_Project extends Scene_Component
 	for (var i = 0; i < this.entities.length; i++) {
 	    this.entities[i].draw(graphics_state);
 	}
+  if(this.fishing_rod.casted){
+    var canvas = document.getElementById("overlay_canvas");
+
+    var speed = 0
+    // window.addEventListener('keydown', function (e) {
+    //     this.key_press = e.keyCode;
+    //     alert("hi")
+    // })
+    // window.addEventListener('keyup', function (e) {
+    //     this.key_press = false;
+    // })
+    // if (this.key_press == 76){
+    //     alert("hi")
+    //     speed = 1
+    // }
+
+    var ctx = canvas.getContext("2d");
+     // Work with context
+     var grd=ctx.createLinearGradient(0,0,ctx.canvas.height,ctx.canvas.width);
+     grd.addColorStop(0,'#8ed6ff');
+     grd.addColorStop(1,'#004cb3');
+     ctx.fillStyle=grd;
+     ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
+     ctx.fillStyle =  "#FF0000";
+     this.rod_position += speed
+     ctx.fillRect(0,0,ctx.canvas.width,this.rod_position);
+
+    }
 
     }
   }
