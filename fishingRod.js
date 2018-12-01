@@ -25,8 +25,9 @@ class FishingRod extends Entity
             waiting: 4,
             reel_in: 5,
             reel_fish: 6,
-            reel_up: 7,
-            hanging: 8,
+            slack_fish: 7,
+            reel_up: 8,
+            hanging: 9,
         }
         this.player = player;
         this.dock = dock;
@@ -38,8 +39,9 @@ class FishingRod extends Entity
         this.casted = 0;
         this.fishing = 1;
         this.power = 0;
-        this.reel_in = 0;
+        this.reel_fish = 0;
         this.fish = false;
+        this.has_bubble = true
         this.key_triggered_button( "Cast", [ "c" ], () => {
             if (this.state == this.states.fishing_rest || this.state == this.states.hanging) {
                 this.space_pressed = true;
@@ -54,8 +56,16 @@ class FishingRod extends Entity
         } );
         this.key_triggered_button( "Reel", [ "x" ], () => {
             // Copy the movement thing to have the press and release logic
-            if (this.state == this.states.waiting){
-                this.state = this.states.reel_in;
+            if(this.fish && (this.state == this.states.reel_fish || this.state == this.states.slack_fish)){
+                this.state = this.states.reel_fish
+            } else {
+                if (this.state == this.states.waiting){
+                    this.state = this.states.reel_in;
+                } 
+            }
+        }, undefined, () => {
+            if (this.state == this.states.reel_fish) {
+                this.state = this.states.slack_fish      
             }
         });
         this.key_triggered_button( "Fish", [ "f" ], () => {
@@ -77,6 +87,7 @@ class FishingRod extends Entity
                 this.power = 0;
                 break;
             case states.wind_up:
+                this.has_bubble = true
                 this.windup_overlay();
                 this.fish = false;
                 this.parameter += graphics_state.animation_delta_time/2;
@@ -101,6 +112,7 @@ class FishingRod extends Entity
                     this.state = states.waiting;
                     if(this.dock.check_bite(this.power, this.player.getDir())){
                         this.fish = true;
+                        this.state = this.states.slack_fish;
                     }
                 }
                 break;
@@ -112,6 +124,24 @@ class FishingRod extends Entity
                 if (this.power == 0){
                     this.state = states.reel_up;
                 }
+                this.parameter = 1;
+                break;
+            case states.reel_fish:
+                this.power -= graphics_state.animation_delta_time/500;
+                this.power = Math.max(this.power, 0);
+                if (this.power == 0){
+                    this.state = states.reel_up;
+                }
+                this.parameter = 1;
+                break;
+            case states.slack_fish:
+                this.power += graphics_state.animation_delta_time/500;
+                if (this.power > 12) {
+                    this.state = states.reel_in
+                    this.has_bubble = false
+                    this.fish = false
+                }
+                this.power = Math.max(this.power, 0);
                 this.parameter = 1;
                 break;
             case states.reel_up:
@@ -171,6 +201,8 @@ class FishingRod extends Entity
             case states.waiting:
             case states.reel_in:
             case states.reel_up:
+            case states.reel_fish:
+            case states.slack_fish:
             case states.hanging:
                 time = 1200;
                 break;
@@ -247,7 +279,7 @@ class FishingRod extends Entity
         if(this.fish){
             model_transform = model_transform.times( Mat4.translation([ 0, scale + MIN_LINE_LEN/2+FISH_SIZE/2, 0 ]) );
             this.shapes.fish.draw(graphics_state, model_transform.times(Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ).times( Mat4.scale([ FISH_SIZE, FISH_SIZE, FISH_SIZE ])),this.get_material(this.fish_texture, material_override) );
-        }else{
+        }else if(this.has_bubble){
             model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
               this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,0,0,1)}), material_override));
             model_transform = model_transform.times( Mat4.translation([ 0, 0.01, 0 ]) );
@@ -260,11 +292,9 @@ class FishingRod extends Entity
         ctx.fillStyle = "#FFFAF0";
         ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
         ctx.fillStyle =  "#FF0000";
-        // TODO: fix basically arbitrary charging bar
         ctx.fillRect(0,0,(this.power-2) * 100,ctx.canvas.height);
         ctx.fillRect(0,0,this.power * 20,ctx.canvas.height);
-        // TODO: Have this play once, i assume christian will add a max charged var
-        if (this.power > 10){
+        if (this.power >= 7.2){
             var audio = document.getElementById("max_charge_sound");
             audio.play();
         }
