@@ -6,7 +6,8 @@ class FishingRod extends Entity
         const shapes = {'box': new Cube(),
                         'cylinder': new Surface_Of_Revolution(3,20, [Vec.of(0,0,1),Vec.of(0,1,1),Vec.of(0,1,-1),Vec.of(0,0,-1)], [ [ 0, 1 ], [ 0,20 ] ]),//new Cube(),               // At the beginning of our program, load one of each of these shape
                         'ball': new Subdivision_Sphere(4),
-                        'fish': new Shape_From_File("assets/fish.obj")}      // design.  Once you've told the GPU what the design of a cube is,
+                        'fish': new Shape_From_File("assets/fish.obj"),
+                        'reel': new Shape_From_File("assets/reel.obj")}      // design.  Once you've told the GPU what the design of a cube is,
         this.submit_shapes( context, shapes );            // it would be redundant to tell it again.  You should just re-use
                                                           // the one called "box" more than once in display() to draw
                                                           // multiple cubes.  Don't define more than one blueprint for the
@@ -70,6 +71,7 @@ class FishingRod extends Entity
         });
         this.key_triggered_button( "Fish", [ "f" ], () => {
             var toggleFishing = this.player.toggleFishing();
+            this.fish = 0;
             if (this.state == this.states.walking && toggleFishing){
                 this.state = this.states.fishing_rest;
             } else {
@@ -229,7 +231,8 @@ class FishingRod extends Entity
         }
         model_transform = model_transform.times( Mat4.translation([ 0, ROD_HEIGHT/2, 0 ]) );
           this.shapes.cylinder.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC, ROD_HEIGHT/4, ROD_CIRC ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.get_material(this.plastic.override({ color: Color.of(0.6,0.4,0.2,1) }), material_override ));
-          this.shapes.cylinder.draw( graphics_state, model_transform.times( Mat4.translation([ -ROD_CIRC*1.1, 0, 0 ]) ).times( Mat4.scale([ ROD_CIRC*2, ROD_CIRC*2, ROD_CIRC*2 ])), this.get_material(this.plastic.override({ color: Color.of(0.6,0.4,0.2,1) }), material_override ));
+          this.shapes.reel.draw( graphics_state, model_transform.times( Mat4.translation([ -ROD_CIRC*10, -ROD_HEIGHT/7, 0 ]) ).times( Mat4.scale([ ROD_CIRC*4, ROD_CIRC*3, -ROD_CIRC*4 ])).times( Mat4.rotation(Math.PI/2, Vec.of( 0,0,1 ) ) ).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.get_material(this.plastic.override({ color: Color.of(0.2,0.2,0.2,1) }), material_override ));
+          this.shapes.cylinder.draw( graphics_state, model_transform.times( Mat4.translation([ -ROD_CIRC*10, ROD_CIRC*3-ROD_HEIGHT/7, 0 ]) ).times( Mat4.scale([ ROD_CIRC*2, ROD_CIRC, -ROD_CIRC*2 ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.get_material(this.plastic.override({ color: Color.of(0.8,0.8,0.8,1) }), material_override ));
 
         //Draw rod top
         model_transform = model_transform.times( Mat4.translation([ 0, ROD_HEIGHT/4, 0 ]) );
