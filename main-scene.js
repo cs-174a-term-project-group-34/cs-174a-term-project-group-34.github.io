@@ -267,34 +267,5 @@ class Final_Project extends Scene_Component
 	for (var i = 0; i < this.entities.length; i++) {
 	    this.entities[i].draw(graphics_state);
 	}
-  if(this.fishing_rod.casted){
-    var canvas = document.getElementById("overlay_canvas");
-
-    var speed = 0
-    // window.addEventListener('keydown', function (e) {
-    //     this.key_press = e.keyCode;
-    //     alert("hi")
-    // })
-    // window.addEventListener('keyup', function (e) {
-    //     this.key_press = false;
-    // })
-    // if (this.key_press == 76){
-    //     alert("hi")
-    //     speed = 1
-    // }
-
-    var ctx = canvas.getContext("2d");
-     // Work with context
-     var grd=ctx.createLinearGradient(0,0,ctx.canvas.height,ctx.canvas.width);
-     grd.addColorStop(0,'#8ed6ff');
-     grd.addColorStop(1,'#004cb3');
-     ctx.fillStyle=grd;
-     ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
-     ctx.fillStyle =  "#FF0000";
-     this.rod_position += speed
-     ctx.fillRect(0,0,ctx.canvas.width,this.rod_position);
-
-    }
-
-    }
   }
+}

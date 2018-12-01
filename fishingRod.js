@@ -51,6 +51,7 @@ class FishingRod extends Entity
             }
         } );
         this.key_triggered_button( "Reel", [ "l" ], () => {
+            // Copy the movement thing to have the press and release logic
             if (this.state == this.states.waiting){
                 this.state = this.states.reel_in;
             }
@@ -74,6 +75,7 @@ class FishingRod extends Entity
                 this.power = 0;
                 break;
             case states.wind_up:
+                this.windup_overlay()
                 this.parameter += graphics_state.animation_delta_time/2;
                 if (this.space_pressed) {
                     this.power += graphics_state.animation_delta_time/300;
@@ -83,8 +85,10 @@ class FishingRod extends Entity
                 } else {
                     this.parameter = Math.min(500, this.parameter);
                 }
+                console.log(this.power)
                 break;
             case states.casting:
+                this.clear_windup()
                 this.parameter += graphics_state.animation_delta_time/2;
                 this.parameter = Math.min(1200, this.parameter);
                 if (this.parameter == 1200) {
@@ -236,4 +240,18 @@ class FishingRod extends Entity
           this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,1,1,1)}), material_override) );
           // this.shapes.fish.draw(graphics_state, model_transform.times(Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ).times( Mat4.scale([ FISH_SIZE, FISH_SIZE, FISH_SIZE ])),this.get_material(this.fish_texture, material_override) );
       }
+    windup_overlay(){
+        var canvas = document.getElementById("casting_canvas");
+        var ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#FFFAF0";
+        ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
+        ctx.fillStyle =  "#FF0000";
+        // TODO: fix basically arbitrary charging bar
+        ctx.fillRect(0,0,this.power * 20,ctx.canvas.height);
+    }
+    clear_windup(){
+        var canvas = document.getElementById("casting_canvas");
+        const context = canvas.getContext('2d');
+        context.clearRect(0, 0, canvas.width, canvas.height);
+    }
   }
