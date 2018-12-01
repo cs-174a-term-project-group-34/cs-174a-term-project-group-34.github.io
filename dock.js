@@ -51,8 +51,8 @@ class Dock extends Entity
             this.splash_time.push(0);
         }
         for(var i = this.splashes.length - 1; i >= 0 ; i--){
-            this.splash_time[i] += t/400;
-            if (this.splash_time[i] > 20){
+            this.splash_time[i] += t/300;
+            if (this.splash_time[i] > 33){
                 this.splash_time.shift();
                 this.splashes.shift();
                 i--;
@@ -65,7 +65,7 @@ class Dock extends Entity
         this.shapes.cylinder.draw(graphics_state, model_transform.times(Mat4.translation([2.5,-1.3,5])).times(Mat4.rotation(Math.PI/2,Vec.of(1,0,0))).times(Mat4.scale([0.25,0.25,2])), this.get_material(this.clay, material_override));
         this.shapes.cylinder.draw(graphics_state, model_transform.times(Mat4.translation([-2.5,-1.3,5])).times(Mat4.rotation(Math.PI/2,Vec.of(1,0,0))).times(Mat4.scale([0.25,0.25,2])), this.get_material(this.clay, material_override));
         for(var i = this.splashes.length - 1; i >= 0 ; i--){
-                if (this.splash_time[i] > 1.5*Math.PI)
+                if (this.splash_time[i] > 3.5*Math.PI)
                     continue;
                 var model_transform_ring = Mat4.identity().times(Mat4.translation([-152.5,-50,60])).times(Mat4.rotation(Math.PI/2,Vec.of(0,1,0))).times(Mat4.rotation(Math.PI/32*this.splashes[i][1],Vec.of(0,1,0))).times(Mat4.translation([0,0,this.splashes[i][0]]));
                 this.shapes.ring.draw(graphics_state, model_transform_ring.times(Mat4.translation([0,-0.56+ 0.1*Math.sin(this.splash_time[i]),0])).times(Mat4.scale([1,0.75,1])).times(Mat4.rotation(Math.PI/2,Vec.of(1,0,0))), this.get_material(this.water, material_override));

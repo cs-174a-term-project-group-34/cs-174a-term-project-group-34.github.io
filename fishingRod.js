@@ -60,6 +60,7 @@ class FishingRod extends Entity
         });
         this.key_triggered_button( "Fish", [ "f" ], () => {
             var toggleFishing = this.player.toggleFishing();
+            this.fish = 0;
             if (this.state == this.states.walking && toggleFishing){
                 this.state = this.states.fishing_rest;
             } else {
