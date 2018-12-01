@@ -27,24 +27,37 @@ class Dock extends Entity
         this.delay = 0;
 
     }
+    check_bite(power, dir){
+        dir = Mat4.rotation(-Math.PI/2,Vec.of(0,1,0)).times(Vec.of(dir[0],dir[1],dir[2],1));
+        power = (power - 2.85) * 2 + 8;
+        console.log(power);
+        console.log(dir);
+        for (var splash of this.splashes){
+            var splash_dir = Mat4.rotation(Math.PI/32*splash[1],Vec.of(0,1,0)).times(Vec.of(0,0,1,1));
+            console.log(splash_dir);
+            console.log(splash[0]);
+            if(Math.abs(power - splash[0]) < 1 && Math.abs(dir[0] - splash_dir[0] + dir[2] - splash_dir[2]) < 0.08){
+                return true;
+            }
+        }
+        return false;
+    }
     update(graphics_state){
         var t = graphics_state.animation_delta_time;
         this.delay -= t;
-        if(this.delay < 0){
+        if(this.delay <= 0){
             this.delay = 2000;
             this.splashes.push([Math.floor(Math.random() * 8) + 8, Math.floor(Math.random() * 9) - 4]);
             this.splash_time.push(0);
         }
         for(var i = this.splashes.length - 1; i >= 0 ; i--){
-            this.splash_time[i] += t/200;
-            if (this.splash_time[i] > 5){
+            this.splash_time[i] += t/400;
+            if (this.splash_time[i] > 20){
                 this.splash_time.shift();
                 this.splashes.shift();
                 i--;
             }
         }
-        console.log(this.splashes);
-        console.log(this.splash_time);
     }
     draw(graphics_state, material_override){
         let model_transform = this.model_transform;//[2.5,0.05,5]
@@ -54,11 +67,19 @@ class Dock extends Entity
         for(var i = this.splashes.length - 1; i >= 0 ; i--){
                 if (this.splash_time[i] > 1.5*Math.PI)
                     continue;
-                var model_transform_ring = model_transform.times(Mat4.rotation(Math.PI/32*this.splashes[i][1],Vec.of(0,1,0))).times(Mat4.translation([0,0,this.splashes[i][0]]))
+                var model_transform_ring = Mat4.identity().times(Mat4.translation([-152.5,-50,60])).times(Mat4.rotation(Math.PI/2,Vec.of(0,1,0))).times(Mat4.rotation(Math.PI/32*this.splashes[i][1],Vec.of(0,1,0))).times(Mat4.translation([0,0,this.splashes[i][0]]));
                 this.shapes.ring.draw(graphics_state, model_transform_ring.times(Mat4.translation([0,-0.56+ 0.1*Math.sin(this.splash_time[i]),0])).times(Mat4.scale([1,0.75,1])).times(Mat4.rotation(Math.PI/2,Vec.of(1,0,0))), this.get_material(this.water, material_override));
                 this.shapes.ring.draw(graphics_state, model_transform_ring.times(Mat4.translation([0,-0.56+ 0.1*Math.sin(this.splash_time[i]+Math.PI/4),0])).times(Mat4.scale([0.75,0.75,0.75])).times(Mat4.rotation(Math.PI/2,Vec.of(1,0,0))), this.get_material(this.water, material_override));
                 this.shapes.ball.draw(graphics_state, model_transform_ring.times(Mat4.translation([0,-0.56+ 0.1*Math.cos(this.splash_time[i]),0])).times(Mat4.scale([0.2,0.1,0.2])).times(Mat4.rotation(Math.PI/2,Vec.of(1,0,0))), this.get_material(this.water, material_override));
         }
+        // for(var i = 8; i < 16; i++){
+        //     for(var j = -4; j < 5; j++){
+        //         var model_transform_ring = Mat4.identity().times(Mat4.translation([-152.5,-50,60])).times(Mat4.rotation(Math.PI/2,Vec.of(0,1,0))).times(Mat4.rotation(Math.PI/32*j,Vec.of(0,1,0))).times(Mat4.translation([0,0,i]));
+        //         this.shapes.ring.draw(graphics_state, model_transform_ring.times(Mat4.translation([0,-0.56+ 0.1*Math.sin(graphics_state.animation_time/200),0])).times(Mat4.scale([1,0.75,1])).times(Mat4.rotation(Math.PI/2,Vec.of(1,0,0))), this.get_material(this.water, material_override));
+        //         this.shapes.ring.draw(graphics_state, model_transform_ring.times(Mat4.translation([0,-0.56+ 0.1*Math.sin(graphics_state.animation_time/200+Math.PI/4),0])).times(Mat4.scale([0.75,0.75,0.75])).times(Mat4.rotation(Math.PI/2,Vec.of(1,0,0))), this.get_material(this.water, material_override));
+        //         this.shapes.ball.draw(graphics_state, model_transform_ring.times(Mat4.translation([0,-0.56+ 0.1*Math.cos(graphics_state.animation_time/200),0])).times(Mat4.scale([0.2,0.1,0.2])).times(Mat4.rotation(Math.PI/2,Vec.of(1,0,0))), this.get_material(this.water, material_override));
+        //     }
+        // }
     }
 
 }
