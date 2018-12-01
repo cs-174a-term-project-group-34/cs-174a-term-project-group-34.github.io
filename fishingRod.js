@@ -1,6 +1,6 @@
 window.FishingRod = window.classes.FishingRod =
 class FishingRod extends Entity
-  { constructor( context, control_box, player)     // The scene begins by requesting the camera, shapes, and materials it will need.
+  { constructor( context, control_box, player, dock)     // The scene begins by requesting the camera, shapes, and materials it will need.
       { super(   context, control_box );    // First, include a secondary Scene that provides movement controls:
 
         const shapes = {'box': new Cube(),
@@ -29,6 +29,7 @@ class FishingRod extends Entity
             hanging: 8,
         }
         this.player = player;
+        this.dock = dock;
         this.state = this.states.walking;
         this.parameter = 0;
         this.space_pressed = false;
@@ -38,19 +39,20 @@ class FishingRod extends Entity
         this.fishing = 1;
         this.power = 0;
         this.reel_in = 0;
-        this.key_triggered_button( "Cast", [ "k" ], () => {
+        this.fish = false;
+        this.key_triggered_button( "Cast", [ "c" ], () => {
             if (this.state == this.states.fishing_rest || this.state == this.states.hanging) {
                 this.space_pressed = true;
                 this.state = this.states.wind_up;
                 this.parameter = 0;
-                this.power = 0;
+                this.power = 2;
             }
         }, undefined, () => {
             if (this.state == this.states.wind_up){
                 this.space_pressed = false;
             }
         } );
-        this.key_triggered_button( "Reel", [ "l" ], () => {
+        this.key_triggered_button( "Reel", [ "x" ], () => {
             // Copy the movement thing to have the press and release logic
             if (this.state == this.states.waiting){
                 this.state = this.states.reel_in;
@@ -75,10 +77,14 @@ class FishingRod extends Entity
                 this.power = 0;
                 break;
             case states.wind_up:
-                this.windup_overlay()
+                this.windup_overlay();
+                this.fish = false;
                 this.parameter += graphics_state.animation_delta_time/2;
                 if (this.space_pressed) {
                     this.power += graphics_state.animation_delta_time/300;
+                    if(this.power > 8){
+                        this.power = 2;
+                    }
                     this.parameter = Math.min(500, this.parameter);
                 } else if (this.parameter >= 500){
                     this.state = states.casting;
@@ -93,6 +99,9 @@ class FishingRod extends Entity
                 this.parameter = Math.min(1200, this.parameter);
                 if (this.parameter == 1200) {
                     this.state = states.waiting;
+                    if(this.dock.check_bite(this.power, this.player.getDir())){
+                        this.fish = true;
+                    }
                 }
                 break;
             case states.waiting:
@@ -133,7 +142,7 @@ class FishingRod extends Entity
         const STRAIGTEN_EXTENSION = 0.25;
         const ROD_HEIGHT = 1.3;
         const NUM_SEG = 8;
-        const MIN_LINE_LEN = 0.25;
+        const MIN_LINE_LEN = 0.3;
         const BUBBLE_SIZE = 0.04;
         const FISH_SIZE = 0.2;
         const ROD_CIRC = 0.015;
@@ -188,6 +197,7 @@ class FishingRod extends Entity
         }
         model_transform = model_transform.times( Mat4.translation([ 0, ROD_HEIGHT/2, 0 ]) );
           this.shapes.cylinder.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC, ROD_HEIGHT/4, ROD_CIRC ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.get_material(this.plastic.override({ color: Color.of(0.6,0.4,0.2,1) }), material_override ));
+          this.shapes.cylinder.draw( graphics_state, model_transform.times( Mat4.translation([ -ROD_CIRC*1.1, 0, 0 ]) ).times( Mat4.scale([ ROD_CIRC*2, ROD_CIRC*2, ROD_CIRC*2 ])), this.get_material(this.plastic.override({ color: Color.of(0.6,0.4,0.2,1) }), material_override ));
 
         //Draw rod top
         model_transform = model_transform.times( Mat4.translation([ 0, ROD_HEIGHT/4, 0 ]) );
@@ -234,11 +244,15 @@ class FishingRod extends Entity
           this.shapes.cylinder.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC/4, scale, ROD_CIRC/4 ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.get_material(this.plastic.override({ color: Color.of(0,0,0.2,0.2) }), material_override) );
 
         // Draw Bubble
-        model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
-          this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,0,0,1)}), material_override));
-        model_transform = model_transform.times( Mat4.translation([ 0, 0.01, 0 ]) );
-          this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,1,1,1)}), material_override) );
-          // this.shapes.fish.draw(graphics_state, model_transform.times(Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ).times( Mat4.scale([ FISH_SIZE, FISH_SIZE, FISH_SIZE ])),this.get_material(this.fish_texture, material_override) );
+        if(this.fish){
+            model_transform = model_transform.times( Mat4.translation([ 0, scale + MIN_LINE_LEN/2+FISH_SIZE/2, 0 ]) );
+            this.shapes.fish.draw(graphics_state, model_transform.times(Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ).times( Mat4.scale([ FISH_SIZE, FISH_SIZE, FISH_SIZE ])),this.get_material(this.fish_texture, material_override) );
+        }else{
+            model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
+              this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,0,0,1)}), material_override));
+            model_transform = model_transform.times( Mat4.translation([ 0, 0.01, 0 ]) );
+              this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,1,1,1)}), material_override) );
+        } // this.shapes.fish.draw(graphics_state, model_transform.times(Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ).times( Mat4.scale([ FISH_SIZE, FISH_SIZE, FISH_SIZE ])),this.get_material(this.fish_texture, material_override) );
       }
     windup_overlay(){
         var canvas = document.getElementById("casting_canvas");
@@ -247,7 +261,7 @@ class FishingRod extends Entity
         ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
         ctx.fillStyle =  "#FF0000";
         // TODO: fix basically arbitrary charging bar
-        ctx.fillRect(0,0,this.power * 20,ctx.canvas.height);
+        ctx.fillRect(0,0,(this.power-2) * 100,ctx.canvas.height);
     }
     clear_windup(){
         var canvas = document.getElementById("casting_canvas");

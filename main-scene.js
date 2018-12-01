@@ -102,10 +102,13 @@ class Player extends Entity {
 	this.key_triggered_button( "Right", [ "d" ], () => this.right = 1, undefined, () => this.right = 0 );
     this.key_triggered_button( "Toggle Run", [ "Shift" ], () => this.run = 1, undefined, () => this.run = 0);
     }
+    getDir(){
+        return this.dir;
+    }
     toggleFishing(){
-        if (!this.fishing && this.pos[0] < -152.5 && this.pos[0] > -154 && this.pos[2] < 60.5 && this.pos[2] > 59.5){
+        if (!this.fishing && this.pos[0] < -152 && this.pos[0] > -154 && this.pos[2] < 60.5 && this.pos[2] > 59.5){
             this.fishing = true;
-            this.pos = Vec.of(-153,-50,60);
+            this.pos = Vec.of(-152.5,-50,60);
             return true;
         }
         if(this.fishing){
@@ -143,7 +146,7 @@ class Player extends Entity {
 
 	if(this.height_map.loaded) {
 	    var height_sample = this.height_map.sample_height(this.pos[0], this.pos[2]);
-        if (this.pos[0] < -152.5 && this.pos[0] > -157.5 && this.pos[2] < 61 && this.pos[2] > 59)
+        if (this.pos[0] < -152 && this.pos[0] > -157.5 && this.pos[2] < 61 && this.pos[2] > 59)
             height_sample = -50;
 	    if (!height_sample || height_sample < this.min_y)
 		this.pos = old_pos;
@@ -151,7 +154,7 @@ class Player extends Entity {
 		this.pos[1] = height_sample + this.height;
 	}
     if(this.fishing)
-        this.pos = Vec.of(-153,-50+this.height,60);
+        this.pos = Vec.of(-152.5,-50+this.height,60);
     }
 
     update(graphics_state) {
@@ -210,7 +213,8 @@ class Final_Project extends Scene_Component
       this.map = new Height_Map(context, this.shadow_map, "assets/heightmapf5.png", 1000, 1000, 512, -100, 200);
       this.water_height = -50.5;
       this.player = new Player(context, control_box.parentElement.insertCell(), this.map, this.water_height)
-      this.entities = [ this.map, this.player, this.water = new Water(context, this.shadow_map, 1000, this.water_height), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell(), this.player), this.dock = new Dock(context, control_box, this.shadow_map)]
+      this.dock = new Dock(context, control_box, this.shadow_map);
+      this.entities = [ this.map, this.player, this.water = new Water(context, this.shadow_map, 1000, this.water_height), new Sky_Box(context, 5000), this.fishing_rod = new FishingRod(context, control_box.parentElement.insertCell(), this.player, this.dock), this.dock]
       this.shadowers = [ this.map, this.fishing_rod, this.dock ];
       const r = context.width/context.height;
       context.globals.graphics_state.projection_transform = Mat4.perspective( Math.PI/3, r, .1, 5000 );
