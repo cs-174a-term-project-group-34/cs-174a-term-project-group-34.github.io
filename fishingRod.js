@@ -248,6 +248,11 @@ class FishingRod extends Entity
         ctx.fillStyle =  "#FF0000";
         // TODO: fix basically arbitrary charging bar
         ctx.fillRect(0,0,this.power * 20,ctx.canvas.height);
+        // TODO: Have this play once, i assume christian will add a max charged var
+        if (this.power > 10){
+            var audio = document.getElementById("max_charge_sound");
+            audio.play();
+        }
     }
     clear_windup(){
         var canvas = document.getElementById("casting_canvas");
