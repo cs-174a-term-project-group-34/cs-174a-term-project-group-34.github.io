@@ -47,11 +47,17 @@
     </canvas>
 </div>
 
-<audio id="background" src="assets/background_music.wav" ></audio>
+<div id='scoreboard' style="position: absolute; left:880px; top:540px; z-index: 1; background: none; font-size:32px">Score:0</div>
+
+<div id='fish-level' style="display: none; position: absolute; left:880px; top:20px; z-index: 1; background: none; font-size:32px">Level:0</div>
+
+
+<!-- <embed name="background_music" src="assets/background_music.wav" loop="true" hidden="true" autostart="true"> -->
 <audio id="max_charge_sound" src="assets/completion.wav" ></audio>
 <audio id="reeling" src="assets/reeling.wav" ></audio>
 <audio id="throw_rod" src="assets/throw_rod.wav" ></audio>
-<audio id="water_droplet" src="assets/water_droplet" ></audio>
+<audio id="water_droplet" src="assets/water_droplet.wav" ></audio>
+<audio id="success_ring" src="assets/success_ring.wav" ></audio>
 <script> "use strict"     // ********************* THE ENTRY POINT OF YOUR WHOLE PROGRAM STARTS HERE *********************
                                            // Use this code to embed a widget into any web page.  The widget inclues a 3D WebGL area
                                            // (an HTML canvas) and various panels of controls.

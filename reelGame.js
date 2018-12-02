@@ -1,9 +1,10 @@
 window.ReelGame = window.classes.ReelGame =
 class ReelGame{
-    constructor(){
+    constructor(level){
         this.fish_pos = 50;
         this.fish_dir = 1;
         this.fish_speed = 1/40;
+        this.fish_level = level;
         this.range_width = 20;
         this.range_pos = 50 - this.range_width/2;
         this.range_decay = 1/20;
@@ -11,7 +12,16 @@ class ReelGame{
         this.elapsed_time = 0;
         this.state = 0;
         this.progress_speed = 1/100;
-        this.fail_speed = 1/200;
+        this.fail_speed = 0.004 + 0.001/5.0 * this.fish_level;
+        if (this.fish_level < 3) {
+            this.progress_speed = 1/50
+        }
+        if (this.fish_level < 5) {
+            this.fish_speed = 1/40 - .005
+        } else if (this.fish_level > 7) {
+            this.fish_speed = 1/40 + .005
+        }
+        console.log(this.fish_level)
     }
 
     update(time_delta){

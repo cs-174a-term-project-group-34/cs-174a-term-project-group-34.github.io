@@ -249,6 +249,8 @@ class Final_Project extends Scene_Component
 	gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color_buffer);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.shadow_map.id, 0);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+
     }
     make_control_panel()            // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
     {

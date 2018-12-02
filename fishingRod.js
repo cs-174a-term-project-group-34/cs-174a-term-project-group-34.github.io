@@ -30,7 +30,8 @@ class FishingRod extends Entity
             reel_up: 8,
             hanging: 9,
         }
-        this.rg = new ReelGame();
+        this.fish_level = 0;
+        this.rg = new ReelGame(1);
         this.player = player;
         this.dock = dock;
         this.state = this.states.walking;
@@ -45,6 +46,7 @@ class FishingRod extends Entity
         this.fish = false;
         this.bend = 0;
         this.bending = false;
+        this.score = 0;
         this.key_triggered_button( "Cast", [ "c" ], () => {
             if (this.state == this.states.fishing_rest || this.state == this.states.hanging) {
                 this.space_pressed = true;
@@ -54,6 +56,10 @@ class FishingRod extends Entity
             }
         }, undefined, () => {
             if (this.state == this.states.wind_up){
+                if (this.power >= 7.7){
+                    var max_charge_sound = document.getElementById("max_charge_sound");
+                    max_charge_sound.play();
+                }
                 this.space_pressed = false;
             }
         } );
@@ -144,7 +150,8 @@ class FishingRod extends Entity
                 break;
             case states.waiting:
                 this.player.setLock(true);
-                if(this.dock.check_bite(this.power, this.player.getDir())){
+                if(true){
+                // if(this.dock.check_bite(this.power, this.player.getDir())){
                     this.fish = true;
                 }
                 if(this.fish){
@@ -152,8 +159,13 @@ class FishingRod extends Entity
                     if(this.parameter > 2000){
                         this.state = states.reel_fish;
                         this.parameter = this.power;
-                        this.rg = new ReelGame();
+                        this.fish_level = Math.ceil(Math.random() * 10)
+                        this.rg = new ReelGame(this.fish_level);
                         this.bend_rod();
+                        var fish_level_html = document.getElementById('fish-level')
+                        fish_level_html.style.display = "block"
+                        var level_string = "Level:" + this.fish_level.toString()
+                        fish_level_html.innerHTML = level_string
                     }
                 }
                 break;
@@ -177,6 +189,17 @@ class FishingRod extends Entity
                 }
                 break;
             case states.reel_in:
+                if (this.fish && this.fish_level >= 0) {
+                    var success_ring = document.getElementById("success_ring");
+                    success_ring.play();
+                    this.score += this.fish_level * 10
+                    var score_string = "Score:" + this.score.toString() 
+                    var scoreboard_html = document.getElementById('scoreboard')
+                    scoreboard_html.innerHTML = score_string
+                    var fish_level_html = document.getElementById('fish-level')
+                    fish_level_html.style.display = "none"
+                    this.fish_level = -1
+                }
                 this.player.setLock(true);
                 this.clear_reel()
                 this.power -= graphics_state.animation_delta_time/500;
@@ -344,10 +367,7 @@ class FishingRod extends Entity
         // TODO: fix basically arbitrary charging bar
         ctx.fillRect(0,0,(this.power-2) * 100,ctx.canvas.height);
         ctx.fillRect(0,0,this.power * 20,ctx.canvas.height);
-        if (this.power >= 7.2){
-            var audio = document.getElementById("max_charge_sound");
-            audio.play();
-        }
+
     }
     clear_windup(){
         var canvas = document.getElementById("casting_canvas");
