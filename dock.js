@@ -32,13 +32,9 @@ class Dock extends Entity
         // const splash_radius_check = 10
         dir = Mat4.rotation(-Math.PI/2,Vec.of(0,1,0)).times(Vec.of(dir[0],dir[1],dir[2],1));
         power = (power - 2.85) * 2 + 8;
-        console.log(power);
-        console.log(dir);
         for (var splash of this.splashes){
             var splash_dir = Mat4.rotation(Math.PI/32*splash[1],Vec.of(0,1,0)).times(Vec.of(0,0,1,1));
-            console.log(splash_dir);
-            console.log(splash[0]);
-            if(Math.abs(power - splash[0]) < 1 && Math.abs(dir[0] - splash_dir[0] + dir[2] - splash_dir[2]) < splash_radius_check){
+            if(Math.abs(power - splash[0]) < 1 && Math.abs(dir[0] - splash_dir[0] + dir[2] - splash_dir[2]) < 0.08){
                 return true;
             }
         }

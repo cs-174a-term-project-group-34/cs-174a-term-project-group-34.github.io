@@ -80,6 +80,7 @@ class Player extends Entity {
 	this.left = 0;
 	this.right = 0;
     this.run = false;
+    this.lock = false;
 
 	// *** Mouse controls: ***
 	this.mouse = { "movement": Vec.of( 0,0 ) };                           // Measure mouse steering, for rotating the flyaround camera:
@@ -105,6 +106,9 @@ class Player extends Entity {
     getDir(){
         return this.dir;
     }
+    setLock(val){
+        this.lock = val;
+    }
     toggleFishing(){
         if (!this.fishing && this.pos[0] < -152 && this.pos[0] > -154 && this.pos[2] < 60.5 && this.pos[2] > 59.5){
             this.fishing = true;
@@ -124,7 +128,8 @@ class Player extends Entity {
         new_pitch = 0;
 
 	var axis = this.up.cross(this.dir).normalized();
-	this.dir = Mat4.rotation(this.mouse.movement[0] * this.radians_per_frame * dt, Vec.of(0,-1,0)).times(Mat4.rotation(new_pitch - this.pitch, axis)).times(this.dir.to4(false)).to3();
+    if(!this.lock)
+	   this.dir = Mat4.rotation(this.mouse.movement[0] * this.radians_per_frame * dt, Vec.of(0,-1,0)).times(Mat4.rotation(new_pitch - this.pitch, axis)).times(this.dir.to4(false)).to3();
 	this.pitch = new_pitch; this.mouse.movement[0] = 0; this.mouse.movement[1] = 0;
 
     var speed = this.speed;
