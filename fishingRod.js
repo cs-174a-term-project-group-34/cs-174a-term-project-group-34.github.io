@@ -30,6 +30,7 @@ class FishingRod extends Entity
             reel_up: 8,
             hanging: 9,
         }
+        this.rg = new ReelGame();
         this.player = player;
         this.dock = dock;
         this.state = this.states.walking;
@@ -42,12 +43,8 @@ class FishingRod extends Entity
         this.power = 0;
         this.reel_fish = 0;
         this.fish = false;
-        this.has_bubble = true;
-        this.overlay_player_pos = 0;
-        this.overlay_fish_pos = 0;
-        this.overlay_speed = -1.0;
-        this.overlay_fish_speed = 1.0;
-        this.winning = false;
+        this.bend = 0;
+        this.bending = false;
         this.key_triggered_button( "Cast", [ "c" ], () => {
             if (this.state == this.states.fishing_rest || this.state == this.states.hanging) {
                 this.space_pressed = true;
@@ -62,38 +59,60 @@ class FishingRod extends Entity
         } );
         this.key_triggered_button( "Reel", [ "x" ], () => {
             // Copy the movement thing to have the press and release logic
-            if(this.fish && (this.state == this.states.reel_fish || this.state == this.states.slack_fish)){
-                this.state = this.states.reel_fish
-            } else {
-                if (this.state == this.states.waiting){
-                    this.state = this.states.reel_in;
-                } 
+            if (this.state == this.states.waiting){
+                this.state = this.states.reel_in;
+            }else if(this.state == this.states.reel_fish){
+                this.rg.reel();
             }
-        }, undefined, () => {
-            if (this.state == this.states.reel_fish) {
-                this.state = this.states.slack_fish      
-            }
+            this.bend_rod();
         });
         this.key_triggered_button( "Fish", [ "f" ], () => {
-            var toggleFishing = this.player.toggleFishing();
             this.fish = 0;
-            if (this.state == this.states.walking && toggleFishing){
-                this.state = this.states.fishing_rest;
-            } else {
+            if ((this.state == this.states.walking)){
+                if(this.player.toggleFishing()){
+                    this.state = this.states.fishing_rest;
+                }
+            } else if(this.state == this.states.fishing_rest){
+                this.player.toggleFishing();
                 this.state = this.states.walking;
+                this.clear_windup();
+            }else if(this.state == this.states.hanging){
+                this.state = this.states.fishing_rest;
+                this.clear_windup();
             }
         });
         this.time = 0;
       }
+      bend_rod(){
+          this.bending = true;
+      }
+      update_bend(time_delta){
+          if(this.bending || this.state == this.states.reel_in){
+              this.bend += time_delta/100;
+              if(this.bend > Math.PI/2)
+                this.bending = false;
+              this.bend = Math.min(this.bend,1.5*Math.PI/2);
+          }else{
+              if(this.bend > Math.PI/2){
+                  this.bend = Math.PI - this.bend;
+              }
+              this.bend -= time_delta/250;
+              this.bend = Math.max(this.bend,0);
+          }
+      }
     update(graphics_state){
         var states = this.states;
+        this.update_bend(graphics_state.animation_delta_time);
         switch (this.state){
             case states.walking:
             case states.fishing_rest:
+                this.player.setLock(false);
                 this.parameter = 0;
                 this.power = 0;
+                this.clear_windup();
                 break;
             case states.wind_up:
+                this.player.setLock(false);
                 this.has_bubble = true
                 this.windup_overlay();
                 this.fish = false;
@@ -112,26 +131,53 @@ class FishingRod extends Entity
                 console.log(this.power)
                 break;
             case states.casting:
+                this.player.setLock(true);
                 this.clear_windup()
                 this.parameter += graphics_state.animation_delta_time/2;
                 this.parameter = Math.min(1200, this.parameter);
                 if (this.parameter == 1200) {
                     this.state = states.waiting;
-                    if(true){
-                    // if(this.dock.check_bite(this.power, this.player.getDir())){
+                    if(this.dock.check_bite(this.power, this.player.getDir())){
                         this.fish = true;
-                        this.state = this.states.slack_fish;
                     }
                 }
                 break;
             case states.waiting:
-                if(true){
-                // if(this.dock.check_bite(this.power, this.player.getDir())){
+                this.player.setLock(true);
+                if(this.dock.check_bite(this.power, this.player.getDir())){
                     this.fish = true;
-                    this.state = this.states.slack_fish;
+                }
+                if(this.fish){
+                    this.parameter += graphics_state.animation_delta_time/2;
+                    if(this.parameter > 2000){
+                        this.state = states.reel_fish;
+                        this.parameter = this.power;
+                        this.rg = new ReelGame();
+                        this.bend_rod();
+                    }
+                }
+                break;
+            case states.reel_fish:
+                this.player.setLock(true);
+                this.reel_overlay();
+                this.rg.update(graphics_state.animation_delta_time);
+                this.power = this.parameter * (1.2 - this.rg.getProgress()/100);
+                switch(this.rg.getStatus()){
+                    case -1:
+                        this.fish = false;
+                        this.state = states.reel_in;
+                        console.log("lost");
+                        break;
+                    case 1:
+                        this.state = states.reel_in;
+                        break;
+                    case 0:
+                        break;
+
                 }
                 break;
             case states.reel_in:
+                this.player.setLock(true);
                 this.clear_reel()
                 this.power -= graphics_state.animation_delta_time/500;
                 this.power = Math.max(this.power, 0);
@@ -140,29 +186,8 @@ class FishingRod extends Entity
                 }
                 this.parameter = 1;
                 break;
-            case states.reel_fish:
-                // alert("in reel fish")
-                this.reel_overlay()
-                this.power -= graphics_state.animation_delta_time/500;
-                this.power = Math.max(this.power, 0);
-                if (this.power == 0){
-                    this.state = states.reel_up;
-                }
-                this.parameter = 1;
-                break;
-            case states.slack_fish:
-                // alert("in slack fish")
-                this.reel_overlay()
-                this.power += graphics_state.animation_delta_time/500;
-                if (this.power > 12) {
-                    this.state = states.reel_in
-                    this.has_bubble = false
-                    this.fish = false
-                }
-                this.power = Math.max(this.power, 0);
-                this.parameter = 1;
-                break;
             case states.reel_up:
+                this.player.setLock(false);
                 this.clear_reel();
                 this.parameter -= graphics_state.animation_delta_time/1000;
                 this.parameter = Math.max(this.parameter, 0);
@@ -171,6 +196,7 @@ class FishingRod extends Entity
                 }
                 break;
             case states.hanging:
+                this.player.setLock(false);
                 break;
         }
     }
@@ -187,8 +213,8 @@ class FishingRod extends Entity
         const STRAIGTEN = 650;
         const FALL = 1200;
         const ANGLE_A = Math.PI/8;
-        const ANGLE_B = Math.PI/6;
-        const ANGLE_C = Math.PI/4;
+        const ANGLE_B = Math.PI/6 + Math.sin(this.bend)*Math.PI/40;
+        const ANGLE_C = Math.PI/4 + Math.sin(this.bend)*Math.PI/40;
         const FLICK_EXTENSION = 0.1;
         const STRAIGTEN_EXTENSION = 0.25;
         const ROD_HEIGHT = 1.3;
@@ -223,7 +249,6 @@ class FishingRod extends Entity
             case states.reel_in:
             case states.reel_up:
             case states.reel_fish:
-            case states.slack_fish:
             case states.hanging:
                 time = 1200;
                 break;
@@ -298,10 +323,10 @@ class FishingRod extends Entity
           this.shapes.cylinder.draw( graphics_state, model_transform.times( Mat4.scale([ ROD_CIRC/4, scale, ROD_CIRC/4 ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.get_material(this.plastic.override({ color: Color.of(0,0,0.2,0.2) }), material_override) );
 
         // Draw Bubble
-        if(this.fish){
+        if(!(this.state == states.waiting) && this.fish){
             model_transform = model_transform.times( Mat4.translation([ 0, scale + MIN_LINE_LEN/2+FISH_SIZE/2, 0 ]) );
-            this.shapes.fish.draw(graphics_state, model_transform.times(Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ).times( Mat4.scale([ FISH_SIZE, FISH_SIZE, FISH_SIZE ])),this.get_material(this.fish_texture, material_override) );
-        }else if(this.has_bubble){
+            this.shapes.fish.draw(graphics_state, model_transform.times(Mat4.rotation(Math.PI/4*Math.sin(graphics_state.animation_time/500), Vec.of( 0,1,0 ) ) ).times(Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ).times( Mat4.scale([ FISH_SIZE*2, FISH_SIZE, FISH_SIZE ])),this.get_material(this.fish_texture, material_override) );
+        }else{
             model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
               this.shapes.ball.draw( graphics_state, model_transform.times( Mat4.scale([ BUBBLE_SIZE, BUBBLE_SIZE, BUBBLE_SIZE ])), this.get_material(this.plastic.override({ color: Color.of(1,0,0,1)}), material_override));
             model_transform = model_transform.times( Mat4.translation([ 0, 0.01, 0 ]) );
@@ -313,7 +338,10 @@ class FishingRod extends Entity
         var ctx = canvas.getContext("2d");
         ctx.fillStyle = "#FFFAF0";
         ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
-        ctx.fillStyle =  "#FF0000";
+        var red = this.power > 6 ? 255 : 255 * (this.power-2)/4;
+        var green = this.power > 6 ? 255 * (8-this.power)/2 : 255;
+        ctx.fillStyle =  "rgb(" + red + ", " + green + ", 0)";
+        // TODO: fix basically arbitrary charging bar
         ctx.fillRect(0,0,(this.power-2) * 100,ctx.canvas.height);
         ctx.fillRect(0,0,this.power * 20,ctx.canvas.height);
         if (this.power >= 7.2){
@@ -337,61 +365,71 @@ class FishingRod extends Entity
         var canvas_height = ctx.canvas.height
         var canvas_width = ctx.canvas.width
 
-        const our_size = 30
-        const fish_size = 20
+        const our_size = this.rg.range_width*2.3;
+        const fish_size = 5;
 
-        if (this.state == this.states.reel_fish) {
-            if (this.overlay_speed < 0) {
-                this.overlay_speed = 1
-            }
-            this.overlay_player_pos += this.overlay_speed
-            this.overlay_player_pos = Math.min(canvas_height - our_size, this.overlay_player_pos)
-            this.overlay_speed += 0.5
-        } else {
-            if (this.overlay_speed > 0) {
-                this.overlay_speed = -1
-            }
-            this.overlay_player_pos += this.overlay_speed
-            this.overlay_player_pos = Math.max(0, this.overlay_player_pos)
-            this.overlay_speed -= 0.5
-        }
+        // if (this.state == this.states.reel_fish) {
+        //     if (this.overlay_speed < 0) {
+        //         this.overlay_speed = 1
+        //     }
+        //     this.overlay_player_pos += this.overlay_speed
+        //     this.overlay_player_pos = Math.min(canvas_height - our_size, this.overlay_player_pos)
+        //     this.overlay_speed += 0.5
+        // } else {
+        //     if (this.overlay_speed > 0) {
+        //         this.overlay_speed = -1
+        //     }
+        //     this.overlay_player_pos += this.overlay_speed
+        //     this.overlay_player_pos = Math.max(0, this.overlay_player_pos)
+        //     this.overlay_speed -= 0.5
+        // }
+        //
+        // // TODO: add a real game
+        // if (true) {
+        //     if (this.overlay_fish_speed < 0) {
+        //         this.overlay_fish_speed = 1
+        //     }
+        //     this.overlay_fish_pos += this.overlay_fish_speed
+        //     this.overlay_fish_pos = Math.min(canvas_height - fish_size, this.overlay_fish_pos)
+        //     this.overlay_fish_speed += 0.1
+        // } else {
+        //     if (this.overlay_fish_speed > 0) {
+        //         this.overlay_fish_speed = -1
+        //     }
+        //     this.overlay_fish_pos += this.overlay_fish_speed
+        //     this.overlay_fish_pos = Math.max(0, this.overlay_fish_pos)
+        //     this.overlay_fish_speed -= 0.1
+        // }
 
-        // TODO: add a real game
-        if (true) {
-            if (this.overlay_fish_speed < 0) {
-                this.overlay_fish_speed = 1
-            }
-            this.overlay_fish_pos += this.overlay_fish_speed
-            this.overlay_fish_pos = Math.min(canvas_height - fish_size, this.overlay_fish_pos)
-            this.overlay_fish_speed += 0.1
-        } else {
-            if (this.overlay_fish_speed > 0) {
-                this.overlay_fish_speed = -1
-            }
-            this.overlay_fish_pos += this.overlay_fish_speed
-            this.overlay_fish_pos = Math.max(0, this.overlay_fish_pos)
-            this.overlay_fish_speed -= 0.1
-        }
-
-        var fish_pos = this.overlay_fish_pos
-        var our_pos = this.overlay_player_pos
+        var fish_pos = this.rg.fish_pos*2.28-3;
+        var our_pos = this.rg.range_pos*2.28;
 
         //fill background
-        ctx.fillStyle = "#FFFAF0";
+        ctx.fillStyle = "rgb(153, 102, 0)";
         ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
-
-        // draw the fish
-        ctx.fillStyle = BLUE
-        ctx.fillRect(30, canvas_height - fish_pos - fish_size, 40, fish_size)
+        ctx.fillStyle = "rgb(51, 102, 153)";
+        ctx.fillRect(6,6,ctx.canvas.width/2-9,ctx.canvas.height-12);
+        ctx.fillStyle = "rgb(100, 74, 0)";
+        ctx.fillRect(ctx.canvas.width/2+3,6,ctx.canvas.width/2-9,ctx.canvas.height-12);
 
         //draw our bar
-        ctx.fillStyle = RED
-        ctx.fillRect(0, canvas_height - our_pos - our_size, 20, our_size);
-        if (our_pos <= fish_pos && our_pos + our_size >= fish_pos + fish_size){
-            this.winning = true
-        } else {
-            this.winning = false
-        }
+        ctx.fillStyle = "rgb(51, 255, 153)";
+        ctx.fillRect(6, canvas_height - our_pos - our_size - 6, ctx.canvas.width/2-9, our_size);
+
+        // draw the fish
+        ctx.fillStyle = "rgb(51, 153, 255)";
+        ctx.fillRect(6, canvas_height - fish_pos - fish_size - 6, ctx.canvas.width/2-9, fish_size);
+
+        // draw the progress
+        ctx.fillStyle = "rgb(255, 166, 0)";
+        ctx.fillRect(ctx.canvas.width/2+3, canvas_height-this.rg.progress*2.28-6, ctx.canvas.width/2-9, this.rg.progress*2.28);
+
+
+        // if (our_pos <= fish_pos && our_pos + our_size >= fish_pos + fish_size){
+        //     this.winning = true
+        // } else {
+        //     this.winning = false
+        // }
     }
 
     clear_reel() {
