@@ -42,7 +42,12 @@ class FishingRod extends Entity
         this.power = 0;
         this.reel_fish = 0;
         this.fish = false;
-        this.has_bubble = true
+        this.has_bubble = true;
+        this.overlay_player_pos = 0;
+        this.overlay_fish_pos = 0;
+        this.overlay_speed = -1.0;
+        this.overlay_fish_speed = 1.0;
+        this.winning = false;
         this.key_triggered_button( "Cast", [ "c" ], () => {
             if (this.state == this.states.fishing_rest || this.state == this.states.hanging) {
                 this.space_pressed = true;
@@ -112,15 +117,22 @@ class FishingRod extends Entity
                 this.parameter = Math.min(1200, this.parameter);
                 if (this.parameter == 1200) {
                     this.state = states.waiting;
-                    if(this.dock.check_bite(this.power, this.player.getDir())){
+                    if(true){
+                    // if(this.dock.check_bite(this.power, this.player.getDir())){
                         this.fish = true;
                         this.state = this.states.slack_fish;
                     }
                 }
                 break;
             case states.waiting:
+                if(true){
+                // if(this.dock.check_bite(this.power, this.player.getDir())){
+                    this.fish = true;
+                    this.state = this.states.slack_fish;
+                }
                 break;
             case states.reel_in:
+                this.clear_reel()
                 this.power -= graphics_state.animation_delta_time/500;
                 this.power = Math.max(this.power, 0);
                 if (this.power == 0){
@@ -129,6 +141,8 @@ class FishingRod extends Entity
                 this.parameter = 1;
                 break;
             case states.reel_fish:
+                // alert("in reel fish")
+                this.reel_overlay()
                 this.power -= graphics_state.animation_delta_time/500;
                 this.power = Math.max(this.power, 0);
                 if (this.power == 0){
@@ -137,6 +151,8 @@ class FishingRod extends Entity
                 this.parameter = 1;
                 break;
             case states.slack_fish:
+                // alert("in slack fish")
+                this.reel_overlay()
                 this.power += graphics_state.animation_delta_time/500;
                 if (this.power > 12) {
                     this.state = states.reel_in
@@ -147,6 +163,7 @@ class FishingRod extends Entity
                 this.parameter = 1;
                 break;
             case states.reel_up:
+                this.clear_reel();
                 this.parameter -= graphics_state.animation_delta_time/1000;
                 this.parameter = Math.max(this.parameter, 0);
                 if (this.parameter == 0){
@@ -159,9 +176,11 @@ class FishingRod extends Entity
     }
     draw( graphics_state, material_override )
       {
-          if(!this.fishing){
-              return;
-          }
+        if(!this.fishing){
+            this.clear_reel();
+            this.clear_windup();
+            return;
+        }
         const REST = 0;
         const WIND_UP = 500;
         const FLICK = 600;
@@ -304,6 +323,79 @@ class FishingRod extends Entity
     }
     clear_windup(){
         var canvas = document.getElementById("casting_canvas");
+        const context = canvas.getContext('2d');
+        context.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    reel_overlay(){
+        const BLUE = "#00FFFF"
+        const RED = "#FF0000";
+
+        var canvas = document.getElementById("reeling_canvas");
+        var ctx = canvas.getContext("2d");
+
+        var canvas_height = ctx.canvas.height
+        var canvas_width = ctx.canvas.width
+
+        const our_size = 30
+        const fish_size = 20
+
+        if (this.state == this.states.reel_fish) {
+            if (this.overlay_speed < 0) {
+                this.overlay_speed = 1
+            }
+            this.overlay_player_pos += this.overlay_speed
+            this.overlay_player_pos = Math.min(canvas_height - our_size, this.overlay_player_pos)
+            this.overlay_speed += 0.5
+        } else {
+            if (this.overlay_speed > 0) {
+                this.overlay_speed = -1
+            }
+            this.overlay_player_pos += this.overlay_speed
+            this.overlay_player_pos = Math.max(0, this.overlay_player_pos)
+            this.overlay_speed -= 0.5
+        }
+
+        // TODO: add a real game
+        if (true) {
+            if (this.overlay_fish_speed < 0) {
+                this.overlay_fish_speed = 1
+            }
+            this.overlay_fish_pos += this.overlay_fish_speed
+            this.overlay_fish_pos = Math.min(canvas_height - fish_size, this.overlay_fish_pos)
+            this.overlay_fish_speed += 0.1
+        } else {
+            if (this.overlay_fish_speed > 0) {
+                this.overlay_fish_speed = -1
+            }
+            this.overlay_fish_pos += this.overlay_fish_speed
+            this.overlay_fish_pos = Math.max(0, this.overlay_fish_pos)
+            this.overlay_fish_speed -= 0.1
+        }
+
+        var fish_pos = this.overlay_fish_pos
+        var our_pos = this.overlay_player_pos
+
+        //fill background
+        ctx.fillStyle = "#FFFAF0";
+        ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
+
+        // draw the fish
+        ctx.fillStyle = BLUE
+        ctx.fillRect(30, canvas_height - fish_pos - fish_size, 40, fish_size)
+
+        //draw our bar
+        ctx.fillStyle = RED
+        ctx.fillRect(0, canvas_height - our_pos - our_size, 20, our_size);
+        if (our_pos <= fish_pos && our_pos + our_size >= fish_pos + fish_size){
+            this.winning = true
+        } else {
+            this.winning = false
+        }
+    }
+
+    clear_reel() {
+        var canvas = document.getElementById("reeling_canvas");
         const context = canvas.getContext('2d');
         context.clearRect(0, 0, canvas.width, canvas.height);
     }
