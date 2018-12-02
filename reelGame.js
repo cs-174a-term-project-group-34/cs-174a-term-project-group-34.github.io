@@ -21,7 +21,7 @@ class ReelGame{
         } else if (this.fish_level > 7) {
             this.fish_speed = 1/40 + .005
         }
-        console.log(this.fish_level)
+        // console.log(this.fish_level)
     }
 
     update(time_delta){

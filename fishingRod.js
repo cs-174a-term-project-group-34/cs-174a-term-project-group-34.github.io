@@ -67,6 +67,7 @@ class FishingRod extends Entity
             // Copy the movement thing to have the press and release logic
             if (this.state == this.states.waiting){
                 this.state = this.states.reel_in;
+                this.fish = 0;
             }else if(this.state == this.states.reel_fish){
                 this.rg.reel();
             }
@@ -109,15 +110,29 @@ class FishingRod extends Entity
     update(graphics_state){
         var states = this.states;
         this.update_bend(graphics_state.animation_delta_time);
+        var info = document.getElementById('info');
+        info.style.display = "block";
         switch (this.state){
             case states.walking:
+                if (this.player.pos[0] < -152 && this.player.pos[0] > -154 && this.player.pos[2] < 60.5 && this.player.pos[2] > 59.5){
+                    info.innerHTML = "Press 'f' to fish";
+                }else{
+                    info.innerHTML = "";
+                }
+                this.player.setLock(false);
+                this.parameter = 0;
+                this.power = 0;
+                this.clear_windup();
+                break;
             case states.fishing_rest:
+                info.innerHTML = "";
                 this.player.setLock(false);
                 this.parameter = 0;
                 this.power = 0;
                 this.clear_windup();
                 break;
             case states.wind_up:
+                info.innerHTML = "";
                 this.player.setLock(false);
                 this.has_bubble = true
                 this.windup_overlay();
@@ -134,9 +149,10 @@ class FishingRod extends Entity
                 } else {
                     this.parameter = Math.min(500, this.parameter);
                 }
-                console.log(this.power)
+                // console.log(this.power)
                 break;
             case states.casting:
+                info.innerHTML = "";
                 this.player.setLock(true);
                 this.clear_windup()
                 this.parameter += graphics_state.animation_delta_time/2;
@@ -149,9 +165,10 @@ class FishingRod extends Entity
                 }
                 break;
             case states.waiting:
+                info.innerHTML = "";
                 this.player.setLock(true);
-                if(true){
-                // if(this.dock.check_bite(this.power, this.player.getDir())){
+                // if(true){
+                if(this.dock.check_bite(this.power, this.player.getDir())){
                     this.fish = true;
                 }
                 if(this.fish){
@@ -159,7 +176,9 @@ class FishingRod extends Entity
                     if(this.parameter > 2000){
                         this.state = states.reel_fish;
                         this.parameter = this.power;
-                        this.fish_level = Math.ceil(Math.random() * 10)
+                        var r = Math.random();
+                        // console.log(r);
+                        this.fish_level = Math.ceil(r * 10)
                         this.rg = new ReelGame(this.fish_level);
                         this.bend_rod();
                         var fish_level_html = document.getElementById('fish-level')
@@ -170,6 +189,7 @@ class FishingRod extends Entity
                 }
                 break;
             case states.reel_fish:
+                info.innerHTML = "";
                 this.player.setLock(true);
                 this.reel_overlay();
                 this.rg.update(graphics_state.animation_delta_time);
@@ -178,10 +198,17 @@ class FishingRod extends Entity
                     case -1:
                         this.fish = false;
                         this.state = states.reel_in;
-                        console.log("lost");
+                        info.innerHTML = "Fish Lost!";
                         break;
                     case 1:
                         this.state = states.reel_in;
+                        info.innerHTML = "Fish Caught!";
+                        var success_ring = document.getElementById("success_ring");
+                        success_ring.play();
+                        this.score += this.fish_level * 10
+                        var score_string = "Score:" + this.score.toString()
+                        var scoreboard_html = document.getElementById('scoreboard')
+                        scoreboard_html.innerHTML = score_string
                         break;
                     case 0:
                         break;
@@ -189,17 +216,8 @@ class FishingRod extends Entity
                 }
                 break;
             case states.reel_in:
-                if (this.fish && this.fish_level >= 0) {
-                    var success_ring = document.getElementById("success_ring");
-                    success_ring.play();
-                    this.score += this.fish_level * 10
-                    var score_string = "Score:" + this.score.toString() 
-                    var scoreboard_html = document.getElementById('scoreboard')
-                    scoreboard_html.innerHTML = score_string
-                    var fish_level_html = document.getElementById('fish-level')
-                    fish_level_html.style.display = "none"
-                    this.fish_level = -1
-                }
+                var fish_level_html = document.getElementById('fish-level')
+                fish_level_html.style.display = "none"
                 this.player.setLock(true);
                 this.clear_reel()
                 this.power -= graphics_state.animation_delta_time/500;
@@ -219,6 +237,7 @@ class FishingRod extends Entity
                 }
                 break;
             case states.hanging:
+                info.innerHTML = "";
                 this.player.setLock(false);
                 break;
         }
@@ -242,9 +261,9 @@ class FishingRod extends Entity
         const STRAIGTEN_EXTENSION = 0.25;
         const ROD_HEIGHT = 1.3;
         const NUM_SEG = 8;
-        const MIN_LINE_LEN = 0.3;
+        const MIN_LINE_LEN = 0.4;
         const BUBBLE_SIZE = 0.04;
-        const FISH_SIZE = 0.2;
+        const FISH_SIZE = 0.2 + this.fish_level/50;
         const ROD_CIRC = 0.015;
         const PLAYER_HEIGHT = 0.75;
         const REST_ANGLE = Math.asin(BUBBLE_SIZE/(MIN_LINE_LEN*2));
@@ -347,7 +366,8 @@ class FishingRod extends Entity
 
         // Draw Bubble
         if(!(this.state == states.waiting) && this.fish){
-            model_transform = model_transform.times( Mat4.translation([ 0, scale + MIN_LINE_LEN/2+FISH_SIZE/2, 0 ]) );
+            this.shapes.cylinder.draw( graphics_state, model_transform.times( Mat4.translation([ 0, scale, 0 ]) ).times( Mat4.scale([ ROD_CIRC/4, scale, ROD_CIRC/4 ])).times( Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ), this.get_material(this.plastic.override({ color: Color.of(0,0,0.2,0.2) }), material_override) );
+            model_transform = model_transform.times( Mat4.translation([ 0, scale + MIN_LINE_LEN/2+FISH_SIZE, 0 ]) );
             this.shapes.fish.draw(graphics_state, model_transform.times(Mat4.rotation(Math.PI/4*Math.sin(graphics_state.animation_time/500), Vec.of( 0,1,0 ) ) ).times(Mat4.rotation(Math.PI/2, Vec.of( 1,0,0 ) ) ).times( Mat4.scale([ FISH_SIZE*2, FISH_SIZE, FISH_SIZE ])),this.get_material(this.fish_texture, material_override) );
         }else{
             model_transform = model_transform.times( Mat4.translation([ 0, scale, 0 ]) );
