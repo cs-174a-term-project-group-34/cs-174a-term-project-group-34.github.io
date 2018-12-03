@@ -60,11 +60,12 @@ class FishingRod extends Entity
                     var max_charge_sound = document.getElementById("max_charge_sound");
                     max_charge_sound.play();
                 }
+                var throw_rod_sound = document.getElementById("throw_rod")
+                throw_rod_sound.play();
                 this.space_pressed = false;
             }
         } );
         this.key_triggered_button( "Reel", [ "x" ], () => {
-            // Copy the movement thing to have the press and release logic
             if (this.state == this.states.waiting){
                 this.state = this.states.reel_in;
                 this.fish = 0;
@@ -72,6 +73,8 @@ class FishingRod extends Entity
                 this.rg.reel();
             }
             this.bend_rod();
+            var reeling_sound = document.getElementById("reeling");
+            reeling_sound.play();
         });
         this.key_triggered_button( "Fish", [ "f" ], () => {
             this.fish = 0;
@@ -408,39 +411,6 @@ class FishingRod extends Entity
         const our_size = this.rg.range_width*2.3;
         const fish_size = 5;
 
-        // if (this.state == this.states.reel_fish) {
-        //     if (this.overlay_speed < 0) {
-        //         this.overlay_speed = 1
-        //     }
-        //     this.overlay_player_pos += this.overlay_speed
-        //     this.overlay_player_pos = Math.min(canvas_height - our_size, this.overlay_player_pos)
-        //     this.overlay_speed += 0.5
-        // } else {
-        //     if (this.overlay_speed > 0) {
-        //         this.overlay_speed = -1
-        //     }
-        //     this.overlay_player_pos += this.overlay_speed
-        //     this.overlay_player_pos = Math.max(0, this.overlay_player_pos)
-        //     this.overlay_speed -= 0.5
-        // }
-        //
-        // // TODO: add a real game
-        // if (true) {
-        //     if (this.overlay_fish_speed < 0) {
-        //         this.overlay_fish_speed = 1
-        //     }
-        //     this.overlay_fish_pos += this.overlay_fish_speed
-        //     this.overlay_fish_pos = Math.min(canvas_height - fish_size, this.overlay_fish_pos)
-        //     this.overlay_fish_speed += 0.1
-        // } else {
-        //     if (this.overlay_fish_speed > 0) {
-        //         this.overlay_fish_speed = -1
-        //     }
-        //     this.overlay_fish_pos += this.overlay_fish_speed
-        //     this.overlay_fish_pos = Math.max(0, this.overlay_fish_pos)
-        //     this.overlay_fish_speed -= 0.1
-        // }
-
         var fish_pos = this.rg.fish_pos*2.28-3;
         var our_pos = this.rg.range_pos*2.28;
 
@@ -464,12 +434,6 @@ class FishingRod extends Entity
         ctx.fillStyle = "rgb(255, 166, 0)";
         ctx.fillRect(ctx.canvas.width/2+3, canvas_height-this.rg.progress*2.28-6, ctx.canvas.width/2-9, this.rg.progress*2.28);
 
-
-        // if (our_pos <= fish_pos && our_pos + our_size >= fish_pos + fish_size){
-        //     this.winning = true
-        // } else {
-        //     this.winning = false
-        // }
     }
 
     clear_reel() {
