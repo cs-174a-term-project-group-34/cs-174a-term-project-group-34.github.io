@@ -1,4 +1,8 @@
 # Fishing Simulator
+## Project Description:
+
+Our project is a fishing simulator that is inspired greatly by the fishing in Stardew Valley. The player can explore the world he is placed in, or he can fish on the dock. When he goes fishing, he will catch fish of levels ranging from 1 to 10, where a higher level indicates higher difficulty and point value. 
+
 ## How to Play:
 
  1. Start `host.command` or `host.bat` server
